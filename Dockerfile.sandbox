@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+# Install Node.js just in case we need it for JS testing
+RUN apt-get update && apt-get install -y curl && 
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && 
+    apt-get install -y nodejs && 
+    rm -rf /var/lib/apt/lists/*
+
+# Install some common tools
+RUN pip install pytest requests pydantic
+
+WORKDIR /workspace
+
+CMD ["bash"]

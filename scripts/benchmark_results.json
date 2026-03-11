@@ -1,0 +1,23 @@
+[
+    {
+        "model": "phi3.5:latest",
+        "tokens": 318,
+        "tps": 22.40893878372936,
+        "load_duration": 63.381545137,
+        "total_time": 78.5267219543457
+    },
+    {
+        "model": "qwen2.5-coder:7b",
+        "tokens": 217,
+        "tps": 10.31832332391644,
+        "load_duration": 16.555086623,
+        "total_time": 39.141897201538086
+    },
+    {
+        "model": "gemma2:2b",
+        "tokens": 441,
+        "tps": 31.01934066856479,
+        "load_duration": 4.979399066,
+        "total_time": 19.729897260665894
+    }
+]

@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "mini-software-house"
+version = "0.1.0"
+description = ""
+authors = ["venysssssssssss <viniciussport2004@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+structlog = "^25.5.0"
+colorama = "^0.4.6"
+docker = "^7.1.0"
+sqlmodel = "^0.0.37"
+ollama = "^0.6.1"
+streamlit = "^1.55.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
