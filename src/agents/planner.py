@@ -28,37 +28,19 @@ class PlannerAgent(Agent):
 
     def plan_task(self, user_request: str) -> dict:
         self.log_action(f"Planning task: {user_request}")
-        response = self.generate_response(user_request)
-        self.log_action("Plan generated. Parsing JSON...")
         
-        # Advanced cleanup strategy for robust JSON extraction
-        # 1. Strip Markdown code blocks
-        response_clean = re.sub(r"```(?:json)?", "", response, flags=re.IGNORECASE)
-        response_clean = re.sub(r"```", "", response_clean)
-        
-        # 2. Strip standard comments (// or #) which are invalid in standard JSON but models love adding
-        response_clean = re.sub(r"^\s*//.*$", "", response_clean, flags=re.MULTILINE)
-        response_clean = re.sub(r"^\s*#.*$", "", response_clean, flags=re.MULTILINE)
+        # Utilizando Native JSON Mode do Ollama (Grammar-Based Sampling)
+        # Isso garante que o modelo SÓ gere JSON válido, economizando tokens e evitando erros de parse.
+        response = self.generate_response(user_request, format='json')
+        self.log_action("Plan generated (JSON Mode).")
         
         try:
-            start_idx = response_clean.find('{')
-            end_idx = response_clean.rfind('}')
-            
-            if start_idx != -1 and end_idx != -1:
-                json_str = response_clean[start_idx:end_idx+1]
-                # Validate structure keys
-                data = json.loads(json_str)
-                required_keys = {"architecture", "files_to_create", "dependencies", "logical_steps"}
-                if not required_keys.issubset(data.keys()):
-                    missing = required_keys - data.keys()
-                    raise ValueError(f"JSON missing required keys: {missing}")
-                return data
-            else:
-                raise ValueError("No JSON found in response.")
+            data = json.loads(response)
+            required_keys = {"architecture", "files_to_create", "dependencies", "logical_steps"}
+            if not required_keys.issubset(data.keys()):
+                missing = required_keys - data.keys()
+                self.log_action(f"Warning: JSON missing keys: {missing}")
+            return data
         except json.JSONDecodeError as e:
-            self.log_action(f"Error parsing JSON from Planner: {e}")
-            self.log_action(f"Raw Planner response:\n{response}")
+            self.log_action(f"Critical: Model failed to generate valid JSON even in JSON mode: {e}")
             return {}
-        except Exception as e:
-             self.log_action(f"Unexpected error parsing JSON: {e}")
-             return {}

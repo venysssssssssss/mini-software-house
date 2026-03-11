@@ -32,14 +32,14 @@ class Agent:
         print(f"{self.color}[{self.name}] {message}{Style.RESET_ALL}")
         self.logger.info(message)
 
-    def generate_response(self, user_prompt: str) -> str:
+    def generate_response(self, user_prompt: str, **kwargs) -> str:
         messages = [{"role": "system", "content": self.system_prompt}]
         self._add_to_history("user", user_prompt)
         messages.extend(self.chat_history)
 
         try:
             self.log_action(f"Generating response using model {self.model}...")
-            response = ollama.chat(model=self.model, messages=messages)
+            response = ollama.chat(model=self.model, messages=messages, **kwargs)
             reply = response['message']['content']
             self._add_to_history("assistant", reply)
             return reply

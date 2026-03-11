@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "src/rust/file_watcher",
+    "src/rust/docker_log_streamer",
+]

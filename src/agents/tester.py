@@ -2,6 +2,7 @@ import os
 import re
 from .base import Agent
 from ..utils.docker_runner import DockerRunner
+from context_manager import get_code_summary
 from colorama import Fore
 
 class TesterAgent(Agent):
@@ -33,9 +34,11 @@ class TesterAgent(Agent):
                     filepath = os.path.join(root, file)
                     try:
                         with open(filepath, "r", encoding="utf-8") as f:
-                            # Limit file context to avoid blowing up context window (simple heuristic)
-                            file_content = f.read(8000) 
-                            content += f"--- {file} ---\n{file_content}\n\n"
+                            raw_code = f.read()
+                            # AST Optimization: Send structure instead of full code for context efficiency
+                            # The LLM infers logic from names and signatures to write tests
+                            summary = get_code_summary(raw_code)
+                            content += f"--- {file} (Summary) ---\n{summary}\n\n"
                     except Exception:
                         pass
         return content

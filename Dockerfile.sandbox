@@ -1,13 +1,25 @@
 FROM python:3.11-slim
 
-# Install Node.js just in case we need it for JS testing
-RUN apt-get update && apt-get install -y curl && 
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && 
-    apt-get install -y nodejs && 
-    rm -rf /var/lib/apt/lists/*
+# Install system dependencies + Node.js (common for modern dev)
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    build-essential \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install some common tools
-RUN pip install pytest requests pydantic
+# Pre-install heavy libraries to optimize caching (Layer 3.3 Optimization)
+# This prevents the agent from needing to download these for every run
+RUN pip install --no-cache-dir \
+    pytest \
+    requests \
+    pydantic \
+    numpy \
+    pandas \
+    fastapi \
+    uvicorn \
+    httpx
 
 WORKDIR /workspace
 

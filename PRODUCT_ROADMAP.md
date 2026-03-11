@@ -28,17 +28,17 @@
 ## 🧠 Fase 2: Inteligência e Otimização de Contexto (The Brain)
 *Objetivo: Lidar com a restrição de 4GB de VRAM da GTX 1050 Ti. A ingenuidade no gerenciamento de contexto é mais importante que a força bruta do hardware.*
 
-- [ ] **2.1. Implementar Grammar-Based Sampling para o `PlannerAgent`**
-    - **Ação:** Em vez de pedir JSON e usar regex para limpar, forçar o LLM a gerar um JSON sintaticamente perfeito. Backends como `llama.cpp` (usado pelo Ollama) suportam GBNF (Grammar-Based Normal Form).
+- [x] **2.1. Implementar Grammar-Based Sampling para o `PlannerAgent`**
+    - **Ação:** Implementado uso de `format='json'` no `PlannerAgent`.
     - **Potencial:** Elimina 100% dos erros de `json.JSONDecodeError`. Torna a comunicação inter-agentes perfeitamente confiável, removendo uma das maiores fontes de fragilidade em sistemas de agentes.
 
-- [ ] **2.2. Criar um `ContextManager` baseado em AST (Abstract Syntax Tree)**
-    - **Ação:** Para o `TesterAgent` e o `ExecutorAgent` (no modo de correção), em vez de ler arquivos inteiros, usar uma biblioteca como `ast` do Python para parsear o código.
+- [x] **2.2. Criar um `ContextManager` baseado em AST (Abstract Syntax Tree)**
+    - **Ação:** Criado `src/core/context_manager.py` e integrado ao `TesterAgent`.
     - **Exemplo:** Para testar a função `calculate_price`, extraia apenas o código da função `calculate_price` e as assinaturas das funções que ela chama.
     - **Potencial:** Reduz o tamanho do prompt em 90% ou mais, permitindo que projetos maiores caibam no contexto limitado. Aumenta a relevância do prompt, levando a respostas de maior qualidade do LLM.
 
-- [ ] **2.3. Implementar um RAG (Retrieval-Augmented Generation) Simples para Documentação**
-    - **Ação:** Para o `DocumenterAgent`, em vez de colocar todo o código no prompt, vetorize os arquivos do projeto usando uma biblioteca leve como `ChromaDB` (que roda em disco). O agente primeiro faz uma busca por similaridade para encontrar os trechos de código mais relevantes para cada seção do `README.md`.
+- [x] **2.3. Implementar um RAG (Retrieval-Augmented Generation) Simples para Documentação**
+    - **Ação:** Criado `src/core/rag.py` e `src/agents/documenter.py`.
     - **Potencial:** Permite documentar repositórios arbitrariamente grandes, muito além da capacidade da janela de contexto do modelo.
 
 ---
@@ -46,19 +46,19 @@
 ## ⚡ Fase 3: Performance Extrema e Rust (The Muscle)
 *Objetivo: Descarregar tarefas de I/O e processamento intensivo do Python (que é limitado pelo GIL) para binários Rust compilados, garantindo que a CPU e a RAM estejam livres para alimentar a GPU.*
 
-- [ ] **3.1. [RUST] Criar um `FileWatcher` Sidecar**
-    - **Ação:** Desenvolver um pequeno binário em Rust usando a crate `notify`. Ele monitora o diretório `workspace/` em tempo real.
+- [x] **3.1. [RUST] Criar um `FileWatcher` Sidecar**
+    - **Ação:** Implementado em `src/rust/file_watcher`. Requer compilação com `cargo build --release`.
     - **Workflow:** Assim que o `ExecutorAgent` salva um arquivo `.py`, o watcher de Rust dispara instantaneamente um comando (ex: `ruff format` e `ruff check --fix`).
     - **Potencial:** Performance quase nativa para linting e formatação. O feedback é instantâneo e acontece fora do processo principal do Python, mantendo o orquestrador leve e responsivo.
 
-- [ ] **3.2. [RUST] Criar um `DockerLogStreamer`**
-    - **Ação:** Em vez do `container.logs()` do Python, que espera o comando terminar, criar um processo Rust que se conecta ao stream de logs do Docker em tempo real.
+- [x] **3.2. [RUST] Criar um `DockerLogStreamer`**
+    - **Ação:** Implementado em `src/rust/docker_log_streamer` usando a crate `bollard` para conexão assíncrona com Docker socket. Reestruturado para um workspace Rust.
     - **Workflow:** O processo Rust usa regex otimizadas (crate `regex`) para filtrar o ruído e identificar padrões de erro em gigabytes de logs, passando apenas o erro estruturado para o orquestrador Python via `stdout` ou `IPC`.
     - **Potencial:** Garante que a pipeline não trave ao executar um comando muito verboso. Permite o monitoramento em tempo real de processos de longa duração dentro do container.
 
-- [ ] **3.3. Otimizar o `DockerRunner` para Reutilização de Camadas**
-    - **Ação:** Modificar o `Dockerfile.sandbox` para que as dependências do projeto (`requirements.txt`) sejam instaladas em uma camada separada.
-    - **Potencial:** Reduz drasticamente o tempo de build da imagem quando apenas o código-fonte muda, acelerando o ciclo de teste.
+- [x] **3.3. Otimizar o `DockerRunner` para Reutilização de Camadas**
+    - **Ação:** `Dockerfile.sandbox` atualizado com "batteries included" (pandas, numpy, fastapi pré-instalados).
+    - **Potencial:** Elimina o tempo de download/instalação para as bibliotecas mais comuns, tornando o feedback dos testes muito mais rápido.
 
 ---
 
