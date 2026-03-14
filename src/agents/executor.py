@@ -1,6 +1,6 @@
 import re
 import os
-from .base import Agent
+from .base import Agent, get_model_for_role
 from colorama import Fore
 
 class FileManager:
@@ -34,7 +34,7 @@ class ExecutorAgent(Agent):
         )
         super().__init__(
             name="Executor",
-            model="qwen2.5-coder:7b",
+            model=get_model_for_role("backend"),
             system_prompt=system_prompt,
             color=Fore.GREEN
         )

@@ -3,10 +3,10 @@
 ## 1. Arquitetura e Estratégia de Hardware (4GB VRAM)
 Devido à restrição de memória (4GB VRAM na GTX 1050 Ti), **não é possível manter múltiplos LLMs complexos carregados simultaneamente**. A arquitetura da sua software house *deve* ser sequencial, baseada em "swap" de modelos:
 
-- [ ] **Orquestrador de Modelos (Ollama/LM Studio):** Configurar o servidor para descarregar o modelo da memória imediatamente após o uso (no Ollama, ajustar a variável de ambiente `OLLAMA_KEEP_ALIVE=0` ou tempo curto).
-- [ ] **Quantização Obrigatória:** Utilizar apenas modelos em formato GGUF com quantização de 4 bits ou 5 bits (ex: `Q4_K_M`). Modelos maiores que 3.5GB farão *offload* para a CPU e ficarão extremamente lentos.
-- [ ] **Gerenciamento Estrito de Contexto:** Limitar o histórico passado ao LLM (no seu `src/agents/context_manager.py`) a um máximo de ~4096 tokens para evitar overflow da VRAM.
-- [ ] **Embeddings Ultra Leves (RAG):** Usar o modelo `nomic-embed-text` (ocupa menos de 300MB de RAM) para a vetorização no seu `rag.py`.
+- [x] **Orquestrador de Modelos (Ollama/LM Studio):** Configurar o servidor para descarregar o modelo da memória imediatamente após o uso (no Ollama, ajustar a variável de ambiente `OLLAMA_KEEP_ALIVE=0` ou tempo curto).
+- [x] **Quantização Obrigatória:** Utilizar apenas modelos em formato GGUF com quantização de 4 bits ou 5 bits (ex: `Q4_K_M`). Modelos maiores que 3.5GB farão *offload* para a CPU e ficarão extremamente lentos.
+- [x] **Gerenciamento Estrito de Contexto:** Limitar o histórico passado ao LLM (no seu `src/agents/context_manager.py`) a um máximo de ~4096 tokens para evitar overflow da VRAM.
+- [x] **Embeddings Ultra Leves (RAG):** Usar o modelo `nomic-embed-text` (ocupa menos de 300MB de RAM) para a vetorização no seu `rag.py`.
 
 ---
 

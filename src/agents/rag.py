@@ -4,6 +4,7 @@ import glob
 # Soft dependency check for RAG
 try:
     import chromadb
+    from chromadb.utils.embedding_functions import OllamaEmbeddingFunction
 except ImportError:
     chromadb = None
 
@@ -12,7 +13,14 @@ class RAGEngine:
         self.enabled = chromadb is not None
         if self.enabled:
             self.client = chromadb.PersistentClient(path=persist_directory)
-            self.collection = self.client.get_or_create_collection(name="project_codebase")
+            self.ef = OllamaEmbeddingFunction(
+                model_name="nomic-embed-text",
+                url="http://localhost:11434/api/embeddings",
+            )
+            self.collection = self.client.get_or_create_collection(
+                name="project_codebase",
+                embedding_function=self.ef
+            )
         else:
             print("Warning: chromadb not installed. RAG features disabled.")
 

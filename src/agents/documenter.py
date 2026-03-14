@@ -1,4 +1,4 @@
-from .base import Agent
+from .base import Agent, get_model_for_role
 from .rag import RAGEngine
 from colorama import Fore
 import os
@@ -11,7 +11,7 @@ class DocumenterAgent(Agent):
         )
         super().__init__(
             name="Documenter",
-            model="gemma2:2b", # Lightweight model for docs
+            model=get_model_for_role("documenter"), # Lightweight model for docs
             system_prompt=system_prompt,
             color=Fore.MAGENTA
         )

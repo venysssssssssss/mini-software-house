@@ -5,6 +5,20 @@ from colorama import init, Fore, Style
 
 init(autoreset=True)
 
+def get_model_for_role(role: str) -> str:
+    """
+    Returns an optimized model for a given role, fitting within 4GB VRAM limit.
+    """
+    models = {
+        "planner": "qwen2.5:3b",
+        "backend": "qwen2.5-coder:3b",
+        "frontend": "qwen2.5-coder:1.5b",
+        "tester": "deepseek-coder:1.3b",
+        "documenter": "gemma2:2b",
+        "rag": "phi3:mini"
+    }
+    return models.get(role, "qwen2.5:3b")
+
 class Agent:
     def __init__(self, name: str, model: str, system_prompt: str, color=Fore.WHITE):
         self.name = name
@@ -27,6 +41,9 @@ class Agent:
 
     def _add_to_history(self, role: str, content: str):
         self.chat_history.append({"role": role, "content": content})
+        # Strict context management: keep only the last 10 messages (5 turns) to save VRAM
+        if len(self.chat_history) > 10:
+            self.chat_history = self.chat_history[-10:]
 
     def log_action(self, message: str):
         print(f"{self.color}[{self.name}] {message}{Style.RESET_ALL}")
@@ -39,6 +56,8 @@ class Agent:
 
         try:
             self.log_action(f"Generating response using model {self.model}...")
+            # Enforce keep_alive=0 to unload model immediately and save VRAM
+            kwargs.setdefault('keep_alive', 0)
             response = ollama.chat(model=self.model, messages=messages, **kwargs)
             reply = response['message']['content']
             self._add_to_history("assistant", reply)

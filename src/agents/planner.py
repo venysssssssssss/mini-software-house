@@ -1,6 +1,6 @@
 import json
 import re
-from .base import Agent
+from .base import Agent, get_model_for_role
 from colorama import Fore
 
 class PlannerAgent(Agent):
@@ -21,7 +21,7 @@ class PlannerAgent(Agent):
         )
         super().__init__(
             name="Planner",
-            model="phi3.5:latest",
+            model=get_model_for_role("planner"),
             system_prompt=system_prompt,
             color=Fore.CYAN
         )

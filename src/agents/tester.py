@@ -1,8 +1,8 @@
 import os
 import re
-from .base import Agent
+from .base import Agent, get_model_for_role
 from ..utils.docker_runner import DockerRunner
-from context_manager import get_code_summary
+from .context_manager import get_code_summary
 from colorama import Fore
 
 class TesterAgent(Agent):
@@ -16,7 +16,7 @@ class TesterAgent(Agent):
         )
         super().__init__(
             name="Tester",
-            model="phi3.5:latest",
+            model=get_model_for_role("tester"),
             system_prompt=system_prompt,
             color=Fore.YELLOW
         )
