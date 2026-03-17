@@ -13,27 +13,27 @@ Devido à restrição de memória (4GB VRAM na GTX 1050 Ti), **não é possível
 ## 2. Seleção de Modelos Especializados
 Recomendações específicas para modelos locais que rodam fluidamente em 4GB VRAM (parâmetros entre 1.3B e 3B).
 
-- [ ] **Arquiteto / Planejador (`planner.py`)**
+- [] **Arquiteto / Planejador (`planner.py`)**
   - **Função:** Entender o requisito do usuário, quebrar em tarefas (backend, frontend, BD) e definir o plano de execução.
   - **Modelo Recomendado:** `Qwen2.5-3B-Instruct` (GGUF Q4) ou `Llama-3.2-3B-Instruct`. Possuem raciocínio lógico e habilidade de seguir formatos JSON/Markdown excepcionais para o tamanho.
 
-- [ ] **Desenvolvedor Backend (`base.py` / Agent Worker)**
+- [] **Desenvolvedor Backend (`base.py` / Agent Worker)**
   - **Função:** Escrever código em Python/FastAPI/Rust, focar em lógica de banco de dados e rotas.
   - **Modelo Recomendado:** `Qwen2.5-Coder-3B-Instruct` (O melhor na categoria de 3B) ou `DeepSeek-Coder-1.3B-Instruct` (Extremamente rápido, consome <1GB de VRAM, ótimo para snippets menores).
 
-- [ ] **Desenvolvedor Frontend (`base.py` / Agent Worker)**
+- [] **Desenvolvedor Frontend (`base.py` / Agent Worker)**
   - **Função:** Gerar HTML/CSS/JS, React ou componentes visuais.
   - **Modelo Recomendado:** `Qwen2.5-Coder-1.5B-Instruct` (Leve, permitindo que você reserve mais VRAM para passar o contexto de bibliotecas CSS ou templates grandes no prompt).
 
-- [ ] **Engenheiro de Testes/QA (`tester.py`)**
+- [] **Engenheiro de Testes/QA (`tester.py`)**
   - **Função:** Ler o código gerado pelo Dev, inferir os casos de borda e escrever testes unitários rigorosos (ex: Pytest).
   - **Modelo Recomendado:** `DeepSeek-Coder-1.3B-Instruct`. Ele é rápido, exato e excelente em gerar `asserts` e mocks baseados no código fornecido.
 
-- [ ] **Documentador (`documenter.py`)**
+- [] **Documentador (`documenter.py`)**
   - **Função:** Documentar rotas da API, gerar o `README.md`, comentar o código e atualizar o `PRODUCT_ROADMAP.md`.
   - **Modelo Recomendado:** `Gemma-2-2B-It` (Texto fluido, excelente em formatação de relatórios e Markdown) ou `Phi-3-mini-4k-instruct-q4`.
 
-- [ ] **Pesquisador/Analista de Dados (RAG - `rag.py`)**
+- [] **Pesquisador/Analista de Dados (RAG - `rag.py`)**
   - **Função:** Ler documentações técnicas, bibliotecas locais ou regras de negócio indexadas.
   - **Modelo Recomendado:** `Phi-3-mini-4k-instruct` (Muito capaz de sintetizar informações extensas mantendo a fidelidade aos dados buscados).
 
@@ -41,12 +41,12 @@ Recomendações específicas para modelos locais que rodam fluidamente em 4GB VR
 
 ## 3. Implementação e Ajustes no Código (Projeto Atual)
 
-- [ ] **Otimização do `executor.py`:**
+- [x] **Otimização do `executor.py`:**
   - Garantir que a integração com o sandbox (`Dockerfile.sandbox` e `utils/docker_runner.py`) isole a execução do código de forma segura.
   - Implementar um *timeout* rígido (ex: 30 segundos) no `docker_runner.py` para evitar que códigos em loop gerados pelo LLM travem a máquina.
-- [ ] **Orquestrador de Contexto (`context_manager.py`):**
+- [x] **Orquestrador de Contexto (`context_manager.py`):**
   - **Não** enviar a base de código inteira a cada chamada para não estourar os tokens/VRAM. Enviar apenas as *assinaturas das funções* relevantes (AST) e a task da vez.
-- [ ] **Roteamento de Modelos em `base.py`:**
+- [x] **Roteamento de Modelos em `base.py`:**
   - Implementar uma lógica no agente base que determine qual modelo invocar no Ollama dependendo de sua `role` (Especialidade):
     ```python
     def get_model_for_role(role):
@@ -66,13 +66,13 @@ Recomendações específicas para modelos locais que rodam fluidamente em 4GB VR
 
 Para contornar o gargalo da GPU (1050 Ti), implemente o seguinte fluxo sequencial onde apenas **UM** modelo está na VRAM por vez:
 
-1. [ ] **Entrada:** O usuário envia uma solicitação complexa.
-2. [ ] **Planejamento:** O Arquiteto (`Qwen2.5-3B`) analisa, quebra em *micro-tasks* (Schema, Rotas, UI, Testes) -> **O modelo é descarregado da memória.**
-3. [ ] **Desenvolvimento (Backend):** O Backend Dev (`Qwen Coder 3B` ou `DeepSeek 1.3B`) implementa apenas o Schema e Rotas -> **Descarrega.**
-4. [ ] **Garantia de Qualidade (Testes):** O Tester (`DeepSeek 1.3B`) analisa o código gerado no passo 3, cria os arquivos de teste -> **Descarrega.**
-5. [ ] **Validação (Sandbox):** O `executor.py` roda os testes no container Docker.
-6. [ ] **Auto-Cura (Loop):** Se o Docker retornar erro (stacktrace), o erro volta como contexto para o Backend Dev corrigir.
-7. [ ] **Entrega e Docs:** Quando todos os testes passarem, o Documentador (`Gemma 2 2B`) documenta a entrega final.
+1. [] **Entrada:** O usuário envia uma solicitação complexa.
+2. [] **Planejamento:** O Arquiteto (`Qwen2.5-3B`) analisa, quebra em *micro-tasks* (Schema, Rotas, UI, Testes) -> **O modelo é descarregado da memória.**
+3. [] **Desenvolvimento (Backend):** O Backend Dev (`Qwen Coder 3B` ou `DeepSeek 1.3B`) implementa apenas o Schema e Rotas -> **Descarrega.**
+4. [] **Garantia de Qualidade (Testes):** O Tester (`DeepSeek 1.3B`) analisa o código gerado no passo 3, cria os arquivos de teste -> **Descarrega.**
+5. [] **Validação (Sandbox):** O `executor.py` roda os testes no container Docker.
+6. [] **Auto-Cura (Loop):** Se o Docker retornar erro (stacktrace), o erro volta como contexto para o Backend Dev corrigir.
+7. [] **Entrega e Docs:** Quando todos os testes passarem, o Documentador (`Gemma 2 2B`) documenta a entrega final.
 
 ---
 
