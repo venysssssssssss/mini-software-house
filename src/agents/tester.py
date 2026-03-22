@@ -1,7 +1,7 @@
 import os
 import re
 from .base import Agent, get_model_for_role
-from utils.docker_runner import DockerRunner
+from ..utils.docker_runner import DockerRunner
 from .context_manager import get_code_summary
 from colorama import Fore
 

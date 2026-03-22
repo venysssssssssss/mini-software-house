@@ -1,5 +1,10 @@
 [workspace]
 members = [
-    "src/rust/file_watcher",
+    "src/rust/performance_core",
+    "src/rust/json_parser", 
     "src/rust/docker_log_streamer",
+    "src/rust/fs_watcher",
+    "src/rust/ast_parser",
+    "src/rust/ollama_client"
 ]
+resolver = "2"

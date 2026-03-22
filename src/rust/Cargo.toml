@@ -1,0 +1,16 @@
+[workspace]
+members = [
+    "performance_core",
+    "json_parser",
+    "docker_log_streamer",
+    "fs_watcher",
+    "ast_parser",
+    "ollama_client"
+]
+resolver = "2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

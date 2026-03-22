@@ -1,0 +1,9 @@
+[package]
+name = "docker_log_streamer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+regex = "1.10"
+serde_json = "1.0"

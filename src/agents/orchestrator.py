@@ -13,7 +13,7 @@ from .executor import ExecutorAgent
 from .tester import TesterAgent
 from .documenter import DocumenterAgent
 from .rag import RAGEngine
-from utils.docker_runner import DockerRunner
+from ..utils.docker_runner import DockerRunner
 
 init(autoreset=True)
 

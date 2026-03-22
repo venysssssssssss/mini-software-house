@@ -1,0 +1,148 @@
+.PHONY: help docker-build docker-up docker-down docker-logs docker-shell docker-create docker-test clean
+
+# Docker variables
+DOCKER_IMAGE ?= mini-software-house
+DOCKER_TAG ?= latest
+DOCKER_COMPOSE := docker-compose -f docker-compose.yml
+DOCKER_IMAGE_FULL := $(DOCKER_IMAGE):$(DOCKER_TAG)
+
+# Colors for output
+BLUE := \033[0;34m
+GREEN := \033[0;32m
+RED := \033[0;31m
+NC := \033[0m
+
+help:
+	@echo "$(BLUE)Mini Software House - Docker Commands$(NC)"
+	@echo ""
+	@echo "$(GREEN)Building:$(NC)"
+	@echo "  make docker-build        - Build Docker image"
+	@echo "  make docker-rebuild      - Rebuild Docker image (no cache)"
+	@echo ""
+	@echo "$(GREEN)Running:$(NC)"
+	@echo "  make docker-up           - Start all services (db, redis, ollama, app)"
+	@echo "  make docker-down         - Stop all services"
+	@echo "  make docker-stop         - Stop services gracefully"
+	@echo ""
+	@echo "$(GREEN)Execution:$(NC)"
+	@echo "  make docker-create DESC='Build a REST API' - Create project with streaming"
+	@echo "  make docker-shell        - Open interactive shell in container"
+	@echo "  make docker-logs         - Stream logs from all services"
+	@echo ""
+	@echo "$(GREEN)Monitoring:$(NC)"
+	@echo "  make docker-status       - Show system status and GPU info"
+	@echo "  make docker-gpu          - Show GPU metrics"
+	@echo "  make docker-exec         - Execute command in running container"
+	@echo ""
+	@echo "$(GREEN)Cleanup:$(NC)"
+	@echo "  make docker-clean        - Remove containers and volumes"
+	@echo "  make docker-prune        - Prune unused Docker resources"
+
+# Building
+docker-build:
+	@echo "$(BLUE)Building Docker image: $(DOCKER_IMAGE_FULL)$(NC)"
+	docker build -t $(DOCKER_IMAGE_FULL) .
+	@echo "$(GREEN)✓ Build complete$(NC)"
+
+docker-rebuild:
+	@echo "$(BLUE)Rebuilding Docker image (no cache): $(DOCKER_IMAGE_FULL)$(NC)"
+	docker build --no-cache -t $(DOCKER_IMAGE_FULL) .
+	@echo "$(GREEN)✓ Rebuild complete$(NC)"
+
+# Running services
+docker-up:
+	@echo "$(BLUE)Starting all services...$(NC)"
+	$(DOCKER_COMPOSE) up -d
+	@echo "$(GREEN)✓ Services started$(NC)"
+	@echo ""
+	@echo "Services running:"
+	@echo "  • Ollama (LLM): http://localhost:11434"
+	@echo "  • App: http://localhost:8000"
+	@echo "  • Streamlit: http://localhost:8501"
+	@echo "  • PostgreSQL: localhost:5432"
+	@echo "  • Redis: localhost:6379"
+
+docker-down:
+	@echo "$(BLUE)Stopping all services...$(NC)"
+	$(DOCKER_COMPOSE) down
+	@echo "$(GREEN)✓ Services stopped$(NC)"
+
+docker-stop:
+	@echo "$(BLUE)Stopping services gracefully...$(NC)"
+	$(DOCKER_COMPOSE) stop
+	@echo "$(GREEN)✓ Services stopped$(NC)"
+
+# Execution
+docker-create:
+	@if [ -z "$(DESC)" ]; then \
+		echo "$(RED)Error: DESC parameter required$(NC)"; \
+		echo "Usage: make docker-create DESC='Your project description'"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)Creating project with description: $(DESC)$(NC)"
+	$(DOCKER_COMPOSE) run --rm app create "$(DESC)" --verbose --name="$$(python3 -c 'import re; print(re.sub(r"[^\w-]", "-", "$(DESC)".lower()).replace("_", "-")[:20])')"
+
+docker-shell:
+	@echo "$(BLUE)Opening shell in running container...$(NC)"
+	$(DOCKER_COMPOSE) exec app /bin/bash
+
+docker-logs:
+	@echo "$(BLUE)Streaming logs from all services...$(NC)"
+	$(DOCKER_COMPOSE) logs -f
+
+# Monitoring
+docker-status:
+	@echo "$(BLUE)System Status$(NC)"
+	$(DOCKER_COMPOSE) run --rm app status
+
+docker-gpu:
+	@echo "$(BLUE)GPU Metrics$(NC)"
+	$(DOCKER_COMPOSE) run --rm app info
+
+docker-exec:
+	@if [ -z "$(CMD)" ]; then \
+		echo "$(RED)Error: CMD parameter required$(NC)"; \
+		echo "Usage: make docker-exec CMD='python -m src.cli status'"; \
+		exit 1; \
+	fi
+	@$(DOCKER_COMPOSE) exec app $(CMD)
+
+# Visualization
+docker-ps:
+	@echo "$(BLUE)Running containers:$(NC)"
+	docker ps --filter "label!=none" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+docker-images:
+	@echo "$(BLUE)Available images:$(NC)"
+	docker images | grep mini-software-house
+
+# Cleanup
+docker-clean:
+	@echo "$(BLUE)Cleaning up Docker resources...$(NC)"
+	$(DOCKER_COMPOSE) down -v
+	@echo "$(GREEN)✓ Cleanup complete$(NC)"
+
+docker-prune:
+	@echo "$(BLUE)Pruning unused Docker resources...$(NC)"
+	docker system prune -f
+	@echo "$(GREEN)✓ Prune complete$(NC)"
+
+# Testing
+docker-test:
+	@echo "$(BLUE)Running tests in Docker...$(NC)"
+	$(DOCKER_COMPOSE) run --rm app python -m pytest tests/ -v
+
+# Advanced
+docker-rebuild-services:
+	@echo "$(BLUE)Rebuilding all services...$(NC)"
+	$(DOCKER_COMPOSE) down
+	$(DOCKER_COMPOSE) build --no-cache
+	$(DOCKER_COMPOSE) up -d
+	@echo "$(GREEN)✓ Services rebuilt and started$(NC)"
+
+docker-live-streaming:
+	@echo "$(BLUE)Starting live monitoring dashboard...$(NC)"
+	$(DOCKER_COMPOSE) exec app python -m streamlit run src/dashboard.py --logger.level=debug
+
+# Help for Docker specific commands
+docker-help: help
