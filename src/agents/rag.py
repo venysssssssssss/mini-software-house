@@ -12,10 +12,11 @@ class RAGEngine:
     def __init__(self, persist_directory="workspace/chroma_db"):
         self.enabled = chromadb is not None
         if self.enabled:
+            ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
             self.client = chromadb.PersistentClient(path=persist_directory)
             self.ef = OllamaEmbeddingFunction(
                 model_name="nomic-embed-text",
-                url="http://localhost:11434/api/embeddings",
+                url=f"{ollama_host}/api/embeddings",
             )
             self.collection = self.client.get_or_create_collection(
                 name="project_codebase",

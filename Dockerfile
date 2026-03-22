@@ -1,119 +1,74 @@
 # Multi-stage Dockerfile for Mini Software House
-# Supports GPU acceleration with NVIDIA CUDA
+# The app container orchestrates work and talks to Ollama over HTTP,
+# so the GPU runtime stays isolated in the Ollama service.
 
-# Stage 1: Builder
-FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04 AS builder
+FROM python:3.12-slim-bookworm AS builder
 
 LABEL maintainer="Mini Software House"
-LABEL description="AI-powered software creation pipeline with GPU support"
+LABEL description="AI-powered software creation pipeline"
 
-# Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    DEBIAN_FRONTEND=noninteractive \
-    CUDA_HOME=/usr/local/cuda
+    POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_VERSION=1.8.2 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:${PATH}"
 
-# Install Python 3.12 and build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.12 \
-    python3.12-dev \
-    python3.12-venv \
     build-essential \
-    git \
-    curl \
-    wget \
-    ca-certificates \
-    libpq-dev \
+    && python -m venv "${VIRTUAL_ENV}" \
+    && pip install --upgrade pip setuptools wheel \
+    && pip install "poetry==${POETRY_VERSION}" \
     && rm -rf /var/lib/apt/lists/*
 
-# Make python3.12 the default
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
-    update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
-
-# Install pip and poetry
-RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12 && \
-    pip install --no-cache-dir poetry
-
-# Set working directory
 WORKDIR /app
 
-# Copy project files
-COPY pyproject.toml poetry.lock* ./
+COPY pyproject.toml poetry.lock ./
 
-# Install Python dependencies
-RUN poetry config virtualenvs.create false && \
-    poetry install --no-interaction --no-ansi 2>&1 || \
-    pip install --no-cache-dir -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+RUN poetry install --only main --no-root --no-ansi
 
-# Stage 2: Runtime
-FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
+FROM python:3.12-slim-bookworm AS runtime
 
 LABEL maintainer="Mini Software House"
-LABEL description="AI-powered software creation pipeline with GPU support"
+LABEL description="AI-powered software creation pipeline"
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    DEBIAN_FRONTEND=noninteractive \
+    PIP_NO_CACHE_DIR=1 \
     OLLAMA_HOST=http://ollama:11434 \
-    CUDA_HOME=/usr/local/cuda
+    PYTHONPATH=/app \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:${PATH}"
 
-# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.12 \
-    python3.12-dev \
-    python3-pip \
-    libpq5 \
-    git \
-    curl \
     ca-certificates \
-    nvidia-utils \
+    curl \
+    tini \
     && rm -rf /var/lib/apt/lists/*
 
-# Make python3.12 the default
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
-    update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
+RUN groupadd --system --gid 1000 appuser \
+    && useradd --system --uid 1000 --gid 1000 --create-home --home-dir /home/appuser appuser
 
-# Create app user
-RUN useradd -m -u 1000 appuser
-
-# Set working directory
 WORKDIR /app
 
-# Copy project files from builder
-COPY --chown=appuser:appuser . /app/
+COPY --from=builder /opt/venv /opt/venv
+COPY --chown=appuser:appuser src ./src
+COPY --chown=appuser:appuser app.py ./app.py
+COPY --chown=appuser:appuser pyproject.toml ./pyproject.toml
+COPY --chown=appuser:appuser docker-entrypoint.sh ./docker-entrypoint.sh
 
-# Create workspace directory
-RUN mkdir -p /app/workspace && \
-    chown -R appuser:appuser /app
+RUN mkdir -p /app/workspace \
+    && chmod 755 /app/docker-entrypoint.sh \
+    && chown -R appuser:appuser /app
 
-# Switch to app user
 USER appuser
 
-# Install dependencies with pip (simpler and more reliable)
-RUN pip install --no-cache-dir --user -q \
-    colorama==0.4.6 \
-    ollama==0.6.1 \
-    structlog==25.5.0 \
-    docker==7.1.0 \
-    sqlmodel==0.0.37 \
-    streamlit==1.55.0 \
-    chromadb==1.5.5 \
-    ruff==0.15.5 \
-    litellm==1.82.3 \
-    accelerate==1.13.0 \
-    bitsandbytes==0.49.2 \
-    poetry==1.8.2
+EXPOSE 8501 8000
 
-ENV PATH="/home/appuser/.local/bin:${PATH}"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD ["python", "-m", "src.cli", "status"]
 
-# Expose ports
-EXPOSE 8501 8000 11434
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 -c "import sys; sys.exit(0)"
-
-# Default command
-ENTRYPOINT ["python3", "-m", "src.cli"]
+ENTRYPOINT ["/usr/bin/tini", "-s", "--", "/app/docker-entrypoint.sh"]
 CMD ["status"]

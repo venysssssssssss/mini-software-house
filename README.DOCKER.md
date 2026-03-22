@@ -26,14 +26,36 @@ docker build -t mini-software-house:latest .
 ```bash
 make docker-up
 # or
-docker-compose up -d
+docker compose up -d
 ```
 
 This starts:
 - **Ollama** (LLM inference) - http://localhost:11434
+- **App Container** (ready for commands)
+
+To enable NVIDIA GPU for Ollama:
+
+```bash
+make docker-up-gpu
+# or
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+```
+
+If port `11434` is already in use on the host:
+
+```bash
+OLLAMA_PORT=11534 make docker-up
+```
+
+Optional extras:
+
+```bash
+docker compose --profile extras up -d
+```
+
+This also starts:
 - **PostgreSQL** - localhost:5432
 - **Redis** - localhost:6379
-- **App Container** (ready for commands)
 
 ### 3. Create Your First Project
 
@@ -77,7 +99,7 @@ make docker-shell
 
 ### REST API Project
 ```bash
-docker-compose run --rm app create "Build a REST API for user management with PostgreSQL"
+docker compose run --rm app create "Build a REST API for user management with PostgreSQL"
 ```
 
 Output:
@@ -91,25 +113,26 @@ Output:
 
 ### Machine Learning Project
 ```bash
-docker-compose run --rm app create "Create a neural network for image classification"
+docker compose run --rm app create "Create a neural network for image classification"
 ```
 
 ### Real-time Chat Application
 ```bash
-docker-compose run --rm app create "Build a real-time chat application with WebSocket" --name="rtchat-app"
+docker compose run --rm app create "Build a real-time chat application with WebSocket" --name="rtchat-app"
 ```
 
 ## 🐳 Docker Compose Services
 
 ### App Service
 - **Image**: Built from Dockerfile
-- **GPU Support**: NVIDIA runtime, all GPUs available
+- **GPU Support**: Not required in the app container; Ollama keeps GPU access
 - **Volumes**: 
   - `./workspace` → `/app/workspace` (project output)
-  - `./src` → `/app/src` (live code)
+  - `./src` → `/app/src` (live code, read-only)
   - `/var/run/docker.sock` → Docker daemon access
 - **Ports**: 8501 (Streamlit), 8000 (API)
 - **Environment**: Connects to Ollama at http://ollama:11434
+- **Runtime**: stays alive with `sleep infinity` so `exec` and `run` commands work reliably
 
 ### Ollama Service
 - **Image**: ollama/ollama:latest
@@ -159,7 +182,6 @@ environment:
 # In docker-compose.yml
 environment:
   - OLLAMA_HOST=http://ollama:11434      # LLM service
-  - CUDA_VISIBLE_DEVICES=0               # GPU selection
   - PYTHONUNBUFFERED=1                   # Real-time output
   - DEFAULT_MODEL=qwen2.5                # Auto-pull model
 ```

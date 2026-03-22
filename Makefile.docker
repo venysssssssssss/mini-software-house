@@ -1,9 +1,12 @@
-.PHONY: help docker-build docker-up docker-down docker-logs docker-shell docker-create docker-test clean
+.PHONY: help docker-build docker-up docker-up-gpu docker-up-full docker-up-full-gpu docker-down docker-logs docker-shell docker-create docker-test clean
 
 # Docker variables
 DOCKER_IMAGE ?= mini-software-house
 DOCKER_TAG ?= latest
-DOCKER_COMPOSE := docker-compose -f docker-compose.yml
+OLLAMA_PORT ?= 11434
+export OLLAMA_PORT
+DOCKER_COMPOSE := docker compose -f docker-compose.yml
+DOCKER_COMPOSE_GPU := docker compose -f docker-compose.yml -f docker-compose.gpu.yml
 DOCKER_IMAGE_FULL := $(DOCKER_IMAGE):$(DOCKER_TAG)
 
 # Colors for output
@@ -20,7 +23,10 @@ help:
 	@echo "  make docker-rebuild      - Rebuild Docker image (no cache)"
 	@echo ""
 	@echo "$(GREEN)Running:$(NC)"
-	@echo "  make docker-up           - Start all services (db, redis, ollama, app)"
+	@echo "  make docker-up           - Start default services in CPU mode"
+	@echo "  make docker-up-gpu       - Start default services with NVIDIA GPU"
+	@echo "  make docker-up-full      - Start CPU mode plus db and redis"
+	@echo "  make docker-up-full-gpu  - Start GPU mode plus db and redis"
 	@echo "  make docker-down         - Stop all services"
 	@echo "  make docker-stop         - Stop services gracefully"
 	@echo ""
@@ -51,16 +57,52 @@ docker-rebuild:
 
 # Running services
 docker-up:
-	@echo "$(BLUE)Starting all services...$(NC)"
+	@echo "$(BLUE)Starting services in CPU mode...$(NC)"
 	$(DOCKER_COMPOSE) up -d
 	@echo "$(GREEN)✓ Services started$(NC)"
 	@echo ""
 	@echo "Services running:"
-	@echo "  • Ollama (LLM): http://localhost:11434"
-	@echo "  • App: http://localhost:8000"
-	@echo "  • Streamlit: http://localhost:8501"
+	@echo "  • Ollama (LLM): http://localhost:$(OLLAMA_PORT)"
+	@echo "  • App container: ready for exec/run commands"
+	@echo "  • Streamlit (if started manually): http://localhost:8501"
+	@echo "  • GPU: disabled in Docker Compose"
+
+docker-up-gpu:
+	@echo "$(BLUE)Starting services with NVIDIA GPU...$(NC)"
+	$(DOCKER_COMPOSE_GPU) up -d
+	@echo "$(GREEN)✓ Services started$(NC)"
+	@echo ""
+	@echo "Services running:"
+	@echo "  • Ollama (LLM): http://localhost:$(OLLAMA_PORT)"
+	@echo "  • App container: ready for exec/run commands"
+	@echo "  • Streamlit (if started manually): http://localhost:8501"
+	@echo "  • GPU: enabled for Ollama"
+
+docker-up-full:
+	@echo "$(BLUE)Starting CPU mode with db and redis...$(NC)"
+	$(DOCKER_COMPOSE) --profile extras up -d
+	@echo "$(GREEN)✓ Services started$(NC)"
+	@echo ""
+	@echo "Services running:"
+	@echo "  • Ollama (LLM): http://localhost:$(OLLAMA_PORT)"
+	@echo "  • App container: ready for exec/run commands"
+	@echo "  • Streamlit (if started manually): http://localhost:8501"
 	@echo "  • PostgreSQL: localhost:5432"
 	@echo "  • Redis: localhost:6379"
+	@echo "  • GPU: disabled in Docker Compose"
+
+docker-up-full-gpu:
+	@echo "$(BLUE)Starting GPU mode with db and redis...$(NC)"
+	$(DOCKER_COMPOSE_GPU) --profile extras up -d
+	@echo "$(GREEN)✓ Services started$(NC)"
+	@echo ""
+	@echo "Services running:"
+	@echo "  • Ollama (LLM): http://localhost:$(OLLAMA_PORT)"
+	@echo "  • App container: ready for exec/run commands"
+	@echo "  • Streamlit (if started manually): http://localhost:8501"
+	@echo "  • PostgreSQL: localhost:5432"
+	@echo "  • Redis: localhost:6379"
+	@echo "  • GPU: enabled for Ollama"
 
 docker-down:
 	@echo "$(BLUE)Stopping all services...$(NC)"
@@ -80,11 +122,11 @@ docker-create:
 		exit 1; \
 	fi
 	@echo "$(BLUE)Creating project with description: $(DESC)$(NC)"
-	$(DOCKER_COMPOSE) run --rm app create "$(DESC)" --verbose --name="$$(python3 -c 'import re; print(re.sub(r"[^\w-]", "-", "$(DESC)".lower()).replace("_", "-")[:20])')"
+	$(DOCKER_COMPOSE) exec app python -m src.cli create "$(DESC)" --verbose --name="$$(python3 -c 'import re; print(re.sub(r"[^\w-]", "-", "$(DESC)".lower()).replace("_", "-")[:20])')"
 
 docker-shell:
 	@echo "$(BLUE)Opening shell in running container...$(NC)"
-	$(DOCKER_COMPOSE) exec app /bin/bash
+	$(DOCKER_COMPOSE) exec app /bin/sh
 
 docker-logs:
 	@echo "$(BLUE)Streaming logs from all services...$(NC)"
@@ -93,11 +135,11 @@ docker-logs:
 # Monitoring
 docker-status:
 	@echo "$(BLUE)System Status$(NC)"
-	$(DOCKER_COMPOSE) run --rm app status
+	$(DOCKER_COMPOSE) exec app python -m src.cli status
 
 docker-gpu:
 	@echo "$(BLUE)GPU Metrics$(NC)"
-	$(DOCKER_COMPOSE) run --rm app info
+	$(DOCKER_COMPOSE) exec app python -m src.cli info
 
 docker-exec:
 	@if [ -z "$(CMD)" ]; then \
@@ -130,7 +172,7 @@ docker-prune:
 # Testing
 docker-test:
 	@echo "$(BLUE)Running tests in Docker...$(NC)"
-	$(DOCKER_COMPOSE) run --rm app python -m pytest tests/ -v
+	$(DOCKER_COMPOSE) exec app python -m pytest tests/ -v
 
 # Advanced
 docker-rebuild-services:

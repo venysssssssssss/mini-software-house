@@ -1,63 +1,73 @@
-# Lightweight Docker Alternative for Development
-# Use this if the full CUDA image is taking too long
-# (Smaller, but GPU acceleration requires local ollama)
+# Lightweight Docker alternative for local development.
+# Expects Ollama to be available outside the container.
 
-FROM python:3.12-slim-ubuntu
+FROM python:3.12-slim-bookworm AS builder
 
-LABEL maintainer="Mini Software House"  
+LABEL maintainer="Mini Software House"
 LABEL description="AI-powered software creation pipeline (lightweight)"
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    DEBIAN_FRONTEND=noninteractive \
-    OLLAMA_HOST=http://localhost:11434
+    PIP_NO_CACHE_DIR=1 \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_VERSION=1.8.2 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:${PATH}"
 
-# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    curl \
-    ca-certificates \
-    libpq5 \
+    build-essential \
+    && python -m venv "${VIRTUAL_ENV}" \
+    && pip install --upgrade pip setuptools wheel \
+    && pip install "poetry==${POETRY_VERSION}" \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app user
-RUN useradd -m -u 1000 appuser
-
-# Set working directory
 WORKDIR /app
 
-# Copy project files
-COPY --chown=appuser:appuser . /app/
+COPY pyproject.toml poetry.lock ./
 
-# Create workspace directory
-RUN mkdir -p /app/workspace && \
-    chown -R appuser:appuser /app
+RUN poetry install --only main --no-root --no-ansi
 
-# Switch to app user
+FROM python:3.12-slim-bookworm AS runtime
+
+LABEL maintainer="Mini Software House"
+LABEL description="AI-powered software creation pipeline (lightweight)"
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    OLLAMA_HOST=http://host.docker.internal:11434 \
+    PYTHONPATH=/app \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:${PATH}"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    tini \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --system --gid 1000 appuser \
+    && useradd --system --uid 1000 --gid 1000 --create-home --home-dir /home/appuser appuser
+
+WORKDIR /app
+
+COPY --from=builder /opt/venv /opt/venv
+COPY --chown=appuser:appuser src ./src
+COPY --chown=appuser:appuser app.py ./app.py
+COPY --chown=appuser:appuser pyproject.toml ./pyproject.toml
+COPY --chown=appuser:appuser docker-entrypoint.sh ./docker-entrypoint.sh
+
+RUN mkdir -p /app/workspace \
+    && chmod 755 /app/docker-entrypoint.sh \
+    && chown -R appuser:appuser /app
+
 USER appuser
 
-# Install Python dependencies (CPU only)
-RUN pip install --no-cache-dir --user -q \
-    colorama==0.4.6 \
-    ollama==0.6.1 \
-    structlog==25.5.0 \
-    docker==7.1.0 \
-    sqlmodel==0.0.37 \
-    streamlit==1.55.0 \
-    chromadb==1.5.5 \
-    ruff==0.15.5 \
-    litellm==1.82.3 \
-    poetry==1.8.2
+EXPOSE 8501 8000
 
-ENV PATH="/home/appuser/.local/bin:${PATH}"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD ["python", "-m", "src.cli", "status"]
 
-# Expose ports
-EXPOSE 8501 8000 11434
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 -c "import sys; sys.exit(0)"
-
-# Default command
-ENTRYPOINT ["python3", "-m", "src.cli"]
+ENTRYPOINT ["/usr/bin/tini", "-s", "--", "/app/docker-entrypoint.sh"]
 CMD ["status"]
