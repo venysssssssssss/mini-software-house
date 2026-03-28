@@ -2,13 +2,13 @@
 """CLI interface with streaming and GPU monitoring"""
 
 import argparse
-import sys
 import json
+import sys
 import time
-from typing import Any, Callable, Optional
-from pathlib import Path
-from colorama import init, Fore, Style
-from .main import main as run_pipeline
+from typing import Optional
+
+from colorama import Fore, Style, init
+
 from src.utils.gpu_monitor import get_monitor
 
 init(autoreset=True)
@@ -35,11 +35,13 @@ class StreamingLogger:
         formatted = f"{color}{prefix} {message}{Style.RESET_ALL}"
 
         print(formatted)
-        self.logs.append({
-            "timestamp": timestamp,
-            "level": level,
-            "message": message,
-        })
+        self.logs.append(
+            {
+                "timestamp": timestamp,
+                "level": level,
+                "message": message,
+            }
+        )
 
         if show_gpu and self.gpu_monitor:
             stats = self.gpu_monitor.get_gpu_stats()
@@ -281,7 +283,9 @@ def main_cli():
         print(f"{Fore.BLUE}System Status{Style.RESET_ALL}")
         monitor = get_monitor()
 
-        print(f"\n✓ GPU Support: {Fore.GREEN if monitor.has_nvidia else Fore.RED}{'Available' if monitor.has_nvidia else 'Not available'}{Style.RESET_ALL}")
+        print(
+            f"\n✓ GPU Support: {Fore.GREEN if monitor.has_nvidia else Fore.RED}{'Available' if monitor.has_nvidia else 'Not available'}{Style.RESET_ALL}"
+        )
 
         if monitor.has_nvidia:
             stats = monitor.get_gpu_stats()

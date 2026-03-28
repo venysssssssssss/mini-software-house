@@ -1,22 +1,23 @@
 """
 Dynamic HTML/CSS Generator
-Generates customized HTML/CSS pages for projects based on their type, complexity, 
+Generates customized HTML/CSS pages for projects based on their type, complexity,
 and tech stack. Creates visually distinct project showcase pages.
 """
 
-import json
-from typing import Dict, List, Tuple
 from enum import Enum
+from typing import Dict, List, Tuple
+
 
 class ColorScheme(Enum):
     """Color schemes for different project types"""
+
     # Backend projects - Purple/Blue tones
     BACKEND = {
         "primary": "#6366f1",
         "secondary": "#4f46e5",
         "accent": "#ec4899",
         "background": "#1e293b",
-        "surface": "#0f172a"
+        "surface": "#0f172a",
     }
     # Frontend projects - Blue/Cyan tones
     FRONTEND = {
@@ -24,7 +25,7 @@ class ColorScheme(Enum):
         "secondary": "#0891b2",
         "accent": "#fbbf24",
         "background": "#0c2340",
-        "surface": "#051e2d"
+        "surface": "#051e2d",
     }
     # Data/Pipeline projects - Green tones
     DATA = {
@@ -32,7 +33,7 @@ class ColorScheme(Enum):
         "secondary": "#059669",
         "accent": "#f59e0b",
         "background": "#064e3b",
-        "surface": "#022c1d"
+        "surface": "#022c1d",
     }
     # ML/AI projects - Orange/Amber tones
     AI = {
@@ -40,7 +41,7 @@ class ColorScheme(Enum):
         "secondary": "#d97706",
         "accent": "#ec4899",
         "background": "#451a03",
-        "surface": "#2d1810"
+        "surface": "#2d1810",
     }
     # Infrastructure - Red/Rose tones
     INFRA = {
@@ -48,7 +49,7 @@ class ColorScheme(Enum):
         "secondary": "#dc2626",
         "accent": "#10b981",
         "background": "#4c0519",
-        "surface": "#2d0a1a"
+        "surface": "#2d0a1a",
     }
     # Default - Indigo tones
     DEFAULT = {
@@ -56,26 +57,27 @@ class ColorScheme(Enum):
         "secondary": "#7c3aed",
         "accent": "#ec4899",
         "background": "#1e1b4b",
-        "surface": "#15803d"
+        "surface": "#15803d",
     }
+
 
 class HTMLGenerator:
     """
     Generates custom HTML/CSS for project showcase pages
     """
-    
+
     def __init__(self):
         """Initialize the generator"""
         self.templates = {}
-    
+
     def get_color_scheme(self, project_type: str, complexity: str) -> Dict[str, str]:
         """
         Get appropriate color scheme based on project type and complexity
-        
+
         Args:
             project_type: Type of project (backend_api, frontend_app, etc.)
             complexity: Complexity level (simple, moderate, complex)
-        
+
         Returns:
             Color scheme dictionary
         """
@@ -90,33 +92,33 @@ class HTMLGenerator:
             "library": ColorScheme.DEFAULT,
             "fullstack": ColorScheme.DEFAULT,
         }
-        
+
         scheme = scheme_map.get(project_type, ColorScheme.DEFAULT)
         return dict(scheme.value.items())
-    
+
     def generate_project_page(
         self,
         project_name: str,
         description: str,
         analysis: Dict,
         file_count: int = 0,
-        dependency_count: int = 0
+        dependency_count: int = 0,
     ) -> str:
         """
         Generate a complete project showcase HTML page
-        
+
         Args:
             project_name: Generated project name
             description: Project description
             analysis: Project analysis data
             file_count: Number of files in project
             dependency_count: Number of dependencies
-        
+
         Returns:
             Complete HTML page as string
         """
         colors = self.get_color_scheme(analysis["type"], analysis["complexity"])
-        
+
         html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -131,11 +133,11 @@ class HTMLGenerator:
         }}
         
         :root {{
-            --primary: {colors['primary']};
-            --secondary: {colors['secondary']};
-            --accent: {colors['accent']};
-            --background: {colors['background']};
-            --surface: {colors['surface']};
+            --primary: {colors["primary"]};
+            --secondary: {colors["secondary"]};
+            --accent: {colors["accent"]};
+            --background: {colors["background"]};
+            --surface: {colors["surface"]};
             --text-light: #f1f5f9;
             --text-muted: #cbd5e1;
         }}
@@ -354,8 +356,8 @@ class HTMLGenerator:
 <body>
     <div class="container">
         <header>
-            <div class="badge">{analysis['type'].replace('_', ' ').title()}</div>
-            <div class="badge">{analysis['complexity'].title()}</div>
+            <div class="badge">{analysis["type"].replace("_", " ").title()}</div>
+            <div class="badge">{analysis["complexity"].title()}</div>
             
             <h1>{project_name}</h1>
             <p class="project-description">{description}</p>
@@ -371,11 +373,11 @@ class HTMLGenerator:
                 <div class="stat-label">Dependencies</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">{len(analysis['tech_stack'])}</div>
+                <div class="stat-value">{len(analysis["tech_stack"])}</div>
                 <div class="stat-label">Tech Stacks</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">{len(analysis['key_features'])}</div>
+                <div class="stat-value">{len(analysis["key_features"])}</div>
                 <div class="stat-label">Key Features</div>
             </div>
         </div>
@@ -384,34 +386,34 @@ class HTMLGenerator:
             <div class="tech-stack">
                 <h3>🛠️ Technology Stack</h3>
                 <div class="tech-list">
-{self._generate_tech_items(analysis['tech_stack'])}
+{self._generate_tech_items(analysis["tech_stack"])}
                 </div>
             </div>
             
             <div class="features">
                 <h3>⚡ Key Capabilities</h3>
                 <div class="feature-list">
-{self._generate_feature_items(analysis['key_features'])}
+{self._generate_feature_items(analysis["key_features"])}
                 </div>
             </div>
         </div>
         
         <footer>
-            <p>Generated for <strong>{project_name}</strong> | Project Type: {analysis['type'].replace('_', ' ').title()} | Complexity: {analysis['complexity'].title()}</p>
+            <p>Generated for <strong>{project_name}</strong> | Project Type: {analysis["type"].replace("_", " ").title()} | Complexity: {analysis["complexity"].title()}</p>
         </footer>
     </div>
 </body>
 </html>
 """
         return html
-    
+
     def generate_landing_page(self, projects: List[Tuple[str, str, Dict]]) -> str:
         """
         Generate a landing page showcasing multiple projects
-        
+
         Args:
             projects: List of (name, description, analysis) tuples
-        
+
         Returns:
             Complete HTML landing page
         """
@@ -419,17 +421,17 @@ class HTMLGenerator:
         for name, description, analysis in projects:
             colors = self.get_color_scheme(analysis["type"], analysis["complexity"])
             project_cards += f"""
-            <div class="project-card" style="border-color: {colors['primary']};">
-                <div class="project-badge">{analysis['complexity'].title()}</div>
+            <div class="project-card" style="border-color: {colors["primary"]};">
+                <div class="project-badge">{analysis["complexity"].title()}</div>
                 <h3>{name}</h3>
                 <p>{description}</p>
                 <div class="project-meta">
-                    <span class="meta-badge">{analysis['type'].replace('_', ' ').title()}</span>
-                    <span class="meta-badge">{', '.join(analysis['tech_stack'][:2])}</span>
+                    <span class="meta-badge">{analysis["type"].replace("_", " ").title()}</span>
+                    <span class="meta-badge">{", ".join(analysis["tech_stack"][:2])}</span>
                 </div>
             </div>
 """
-        
+
         html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -590,14 +592,14 @@ class HTMLGenerator:
 </html>
 """
         return html
-    
+
     def _generate_tech_items(self, tech_stack: List[str]) -> str:
         """Generate tech stack items"""
         items = ""
         for tech in tech_stack:
             items += f'                    <div class="tech-item">{tech.title()}</div>\n'
         return items
-    
+
     def _generate_feature_items(self, features: List[str]) -> str:
         """Generate feature items"""
         items = ""
@@ -612,9 +614,9 @@ class HTMLGenerator:
             "monitoring": "Monitoring & Logging",
             "auth": "Authentication & Security",
         }
-        
+
         for feature in features:
-            name = feature_names.get(feature, feature.replace('_', ' ').title())
+            name = feature_names.get(feature, feature.replace("_", " ").title())
             items += f'                <div class="feature-item"><strong>{name}</strong></div>\n'
         return items
 
@@ -622,7 +624,7 @@ class HTMLGenerator:
 def save_html(content: str, filepath: str) -> bool:
     """Save HTML content to file"""
     try:
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             f.write(content)
         print(f"✓ Generated: {filepath}")
         return True
@@ -634,7 +636,7 @@ def save_html(content: str, filepath: str) -> bool:
 if __name__ == "__main__":
     # Example usage
     generator = HTMLGenerator()
-    
+
     # Generate a single project page
     analysis = {
         "type": "backend_api",
@@ -642,13 +644,13 @@ if __name__ == "__main__":
         "tech_stack": ["Python", "FastAPI"],
         "key_features": ["api", "database", "async"],
     }
-    
+
     html = generator.generate_project_page(
         "FastAPI Server",
         "High-performance REST API with async support and database integration",
         analysis,
         file_count=12,
-        dependency_count=8
+        dependency_count=8,
     )
-    
+
     save_html(html, "/tmp/project_showcase.html")

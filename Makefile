@@ -41,20 +41,20 @@ run: ## Run the pipeline (use: make run TASK="description")
 		exit 1; \
 	fi
 	@echo "$(BLUE)Running pipeline: $(TASK)$(NC)"
-	poetry run python src/main.py --task "$(TASK)"
+	poetry run python -m src.main --task "$(TASK)"
 
 resume: ## Resume from last pipeline state
 	@echo "$(BLUE)Resuming pipeline...$(NC)"
-	poetry run python src/main.py --resume
+	poetry run python -m src.main --resume
 
 dashboard: ## Start Streamlit dashboard
 	@echo "$(BLUE)Starting dashboard at http://localhost:8501$(NC)"
 	streamlit run app.py
 
 # Testing
-test: ## Run all tests (unit + integration)
+test: ## Run all tests (unit + integration) with coverage
 	@echo "$(BLUE)Running tests...$(NC)"
-	poetry run pytest tests/ -v --tb=short
+	poetry run pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
 
 test-unit: ## Run unit tests only
 	@echo "$(BLUE)Running unit tests...$(NC)"

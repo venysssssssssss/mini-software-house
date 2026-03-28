@@ -1,5 +1,4 @@
 import os
-import glob
 
 # Soft dependency check for RAG
 try:
@@ -7,6 +6,7 @@ try:
     from chromadb.utils.embedding_functions import OllamaEmbeddingFunction
 except ImportError:
     chromadb = None
+
 
 class RAGEngine:
     def __init__(self, persist_directory="workspace/chroma_db"):
@@ -19,15 +19,15 @@ class RAGEngine:
                 url=f"{ollama_host}/api/embeddings",
             )
             self.collection = self.client.get_or_create_collection(
-                name="project_codebase",
-                embedding_function=self.ef
+                name="project_codebase", embedding_function=self.ef
             )
         else:
             print("Warning: chromadb not installed. RAG features disabled.")
 
     def index_workspace(self, workspace_dir="workspace"):
-        if not self.enabled: return
-        
+        if not self.enabled:
+            return
+
         files_data = []
         metadatas = []
         ids = []
@@ -42,25 +42,19 @@ class RAGEngine:
                             files_data.append(content)
                             metadatas.append({"source": file, "path": path})
                             ids.append(path)
-        
+
         if files_data:
-            self.collection.upsert(
-                documents=files_data,
-                metadatas=metadatas,
-                ids=ids
-            )
+            self.collection.upsert(documents=files_data, metadatas=metadatas, ids=ids)
 
     def query(self, query_text: str, n_results=3) -> str:
-        if not self.enabled: return ""
-        
-        results = self.collection.query(
-            query_texts=[query_text],
-            n_results=n_results
-        )
-        
+        if not self.enabled:
+            return ""
+
+        results = self.collection.query(query_texts=[query_text], n_results=n_results)
+
         context = ""
-        for i, doc in enumerate(results['documents'][0]):
-            meta = results['metadatas'][0][i]
+        for i, doc in enumerate(results["documents"][0]):
+            meta = results["metadatas"][0][i]
             context += f"\n--- Reference from {meta['source']} ---\n{doc}\n"
-        
+
         return context

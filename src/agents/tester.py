@@ -1,9 +1,50 @@
+import difflib
 import os
 import re
-from .base import Agent, get_model_for_role
-from ..utils.docker_runner import DockerRunner
-from .context_manager import get_code_summary
+
 from colorama import Fore
+
+from ..utils.docker_runner import DockerRunner
+from .base import Agent, get_model_for_role
+from .context_manager import get_code_summary
+
+# Known error types with targeted fix strategies
+ERROR_STRATEGIES = {
+    "ImportError": (
+        "This is an ImportError — a module or name could not be imported. "
+        "Check that: (1) the module is installed, (2) the import path is correct, "
+        "(3) there are no circular imports. Fix ONLY the import issue."
+    ),
+    "ModuleNotFoundError": (
+        "This is a ModuleNotFoundError — a required package is missing. "
+        "Either add it to dependencies or replace with an available alternative. "
+        "Fix ONLY the missing module issue."
+    ),
+    "SyntaxError": (
+        "This is a SyntaxError — there is invalid Python syntax. "
+        "Check for: missing colons, unmatched brackets, invalid indentation, "
+        "or incompatible syntax for the target Python version. "
+        "Fix ONLY the syntax issue, do not rewrite the logic."
+    ),
+    "NameError": (
+        "This is a NameError — a variable or function is used before being defined. "
+        "Check that: (1) the name is spelled correctly, (2) it's defined before use, "
+        "(3) it's in scope. Fix ONLY the undefined name issue."
+    ),
+    "TypeError": (
+        "This is a TypeError — wrong argument types or count. "
+        "Check function signatures and argument types. Fix ONLY the type mismatch."
+    ),
+    "AttributeError": (
+        "This is an AttributeError — accessing an attribute that doesn't exist. "
+        "Check the object type and available attributes. Fix ONLY the attribute access."
+    ),
+    "IndentationError": (
+        "This is an IndentationError — inconsistent indentation. "
+        "Fix ONLY the indentation, do not change logic."
+    ),
+}
+
 
 class TesterAgent(Agent):
     def __init__(self):
@@ -12,13 +53,14 @@ class TesterAgent(Agent):
             "Write pytest tests for the provided Python code. "
             "Focus on testing the core logic. "
             "Always wrap the test code in a markdown block starting with ```python\n"
-            "and ALWAYS put a comment on the VERY FIRST LINE specifying the relative filepath as '# filepath: test_<filename>.py'."
+            "and ALWAYS put a comment on the VERY FIRST LINE specifying "
+            "the relative filepath as '# filepath: test_<filename>.py'."
         )
         super().__init__(
             name="Tester",
             model=get_model_for_role("tester"),
             system_prompt=system_prompt,
-            color=Fore.YELLOW
+            color=Fore.YELLOW,
         )
         try:
             self.docker_runner = DockerRunner()
@@ -35,8 +77,8 @@ class TesterAgent(Agent):
                     try:
                         with open(filepath, "r", encoding="utf-8") as f:
                             raw_code = f.read()
-                            # AST Optimization: Send structure instead of full code for context efficiency
-                            # The LLM infers logic from names and signatures to write tests
+                            # AST: send structure, not full code
+                            # LLM infers logic from signatures
                             summary = get_code_summary(raw_code)
                             content += f"--- {file} (Summary) ---\n{summary}\n\n"
                     except Exception:
@@ -46,7 +88,7 @@ class TesterAgent(Agent):
     def generate_tests(self) -> str:
         self.log_action("Reading workspace code...")
         code_context = self.read_workspace_files()
-        
+
         if not code_context:
             return "No Python code found to test."
 
@@ -57,18 +99,61 @@ class TesterAgent(Agent):
 
     def run_tests(self) -> dict:
         if not self.docker_runner:
-            self.log_action("Docker not available to run tests. Skipping execution and faking success.")
+            self.log_action(
+                "Docker not available to run tests. Skipping execution and faking success."
+            )
             return {"exit_code": 0, "output": "Docker not available. Tests skipped."}
-        
+
         self.log_action("Running tests in Docker sandbox...")
         cmd = "pytest -v"
         result = self.docker_runner.run_command(cmd)
         self.log_action(f"Test Exit Code: {result['exit_code']}")
-        
+
         return result
+
+    def classify_error(self, test_output: str) -> str | None:
+        """Identify the primary error type from test output."""
+        for error_type in ERROR_STRATEGIES:
+            if error_type in test_output:
+                return error_type
+        return None
+
+    def build_correction_prompt(self, error_details: str, error_type: str | None) -> str:
+        """Build a targeted correction prompt based on error classification."""
+        parts = [f"The following tests failed:\n{error_details}\n"]
+
+        if error_type and error_type in ERROR_STRATEGIES:
+            parts.append(ERROR_STRATEGIES[error_type])
+        else:
+            parts.append(
+                "Please fix the code based on these test failures. "
+                "Focus on the specific errors mentioned above."
+            )
+
+        parts.append(
+            "\nIMPORTANT: Make minimal changes. Fix only what is broken. "
+            "Do NOT rewrite working code."
+        )
+
+        return "\n\n".join(parts)
 
     def parse_error(self, test_output: str) -> str:
         failures = re.findall(r"(FAILED.*?\n.*?(?=\n\n|\Z))", test_output, re.DOTALL)
         if failures:
             return "\n".join(failures)
         return test_output[-1000:]
+
+    @staticmethod
+    def check_hallucination(old_code: str, new_code: str, threshold: float = 0.80) -> bool:
+        """Return True if the new code changed more than `threshold` of the original.
+
+        This guards against the LLM hallucinating a complete rewrite instead of
+        making a targeted fix.
+        """
+        if not old_code.strip():
+            return False
+
+        matcher = difflib.SequenceMatcher(None, old_code.splitlines(), new_code.splitlines())
+        similarity = matcher.ratio()
+        # If less than (1 - threshold) similar, it's a hallucination
+        return similarity < (1.0 - threshold)

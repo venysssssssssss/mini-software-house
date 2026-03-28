@@ -1,7 +1,14 @@
 """Database configuration and session management."""
 
-from sqlmodel import SQLModel, create_engine, Session
-from .models import *
+from sqlmodel import Session, SQLModel, create_engine
+
+from .models import (  # noqa: F401 — needed for SQLModel metadata
+    AgentLog,
+    DPOTuple,
+    PipelineRun,
+    Project,
+    Task,
+)
 
 sqlite_file_name = "software_house.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"

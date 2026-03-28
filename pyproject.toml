@@ -19,6 +19,8 @@ litellm = "^1.82.3"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.15.5"
+pytest = "^9.0.2"
+pytest-cov = "^7.1.0"
 
 [tool.poetry.group.ml]
 optional = true
@@ -27,6 +29,24 @@ optional = true
 accelerate = "^1.13.0"
 bitsandbytes = "^0.49.2"
 
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/html_generator.py" = ["E501", "W293"]
+"src/cli.py" = ["E501", "F841"]
+"src/naming_engine.py" = ["E501", "E722"]
+"src/utils/docker_runner.py" = ["E722"]
+"src/utils/gpu_monitor.py" = ["E501"]
 
 [build-system]
 requires = ["poetry-core"]

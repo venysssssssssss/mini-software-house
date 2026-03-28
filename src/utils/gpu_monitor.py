@@ -2,17 +2,16 @@
 """GPU monitoring and real-time metrics"""
 
 import subprocess
-import json
-import re
-from typing import Dict, Optional
-from dataclasses import dataclass
 import threading
 import time
+from dataclasses import dataclass
+from typing import Dict
 
 
 @dataclass
 class GPUStats:
     """GPU statistics"""
+
     gpu_id: int
     name: str
     memory_used_mb: int
@@ -86,7 +85,7 @@ class GPUMonitor:
                     continue
 
                 parts = [p.strip() for p in line.split(",")]
-                
+
                 gpu_id = int(parts[0])
                 name = parts[1]
                 memory_used = int(float(parts[2]))
@@ -134,7 +133,9 @@ class GPUMonitor:
             util_bar = self._create_bar(stat.utilization)
 
             output.append(f"\n🖥️  GPU {stat.gpu_id}: {stat.name}")
-            output.append(f"   Memory: {mem_bar} {stat.memory_used_mb}/{stat.memory_total_mb} MB ({stat.memory_percent:.1f}%)")
+            output.append(
+                f"   Memory: {mem_bar} {stat.memory_used_mb}/{stat.memory_total_mb} MB ({stat.memory_percent:.1f}%)"
+            )
             output.append(f"   Utilization: {util_bar} {stat.utilization:.1f}%")
             output.append(f"   Temperature: {stat.temperature:.1f}°C")
             output.append(f"   Power: {stat.power_draw:.1f}W / {stat.power_limit:.1f}W")

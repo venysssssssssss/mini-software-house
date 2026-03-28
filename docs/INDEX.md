@@ -17,6 +17,12 @@ Arquitetura, roadmap e otimizações do sistema.
 - [PERFORMANCE_OPTIMIZATION_PLAN.md](architecture/PERFORMANCE_OPTIMIZATION_PLAN.md) - Estratégia de otimização
 - [OPTIMIZATION_SUMMARY.md](architecture/OPTIMIZATION_SUMMARY.md) - Resumo executivo
 
+### 📅 Sprint Plan
+- [SPRINT_PLAN.md](SPRINT_PLAN.md) - 3-sprint improvement plan (Stability -> Intelligence -> Experience)
+  - Sprint 1 (Stability): Complete -- wiring, tests, CI
+  - Sprint 2 (Intelligence): Complete -- metrics, dashboard, executor, tester, Rust FFI
+  - Sprint 3 (Experience): Not started
+
 ### 🔧 [`setup/`](setup/)
 Configuração ambiental e checklist de setup.
 - [CHECKLIST_SOFTWARE_HOUSE_1050TI.md](setup/CHECKLIST_SOFTWARE_HOUSE_1050TI.md) - Validação HW/SW

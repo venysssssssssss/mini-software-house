@@ -1,8 +1,8 @@
 """Event bus implementation for pub/sub communication."""
 
-from typing import Callable, Dict, List, Any
-from dataclasses import dataclass, field
 import datetime
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List
 
 
 @dataclass
@@ -36,7 +36,6 @@ class EventBus:
         event = Event(type=event_type, payload=payload)
         cls._history.append(event)
 
-        # Simple synchronous dispatch for MVP
         if event_type in cls._subscribers:
             for callback in cls._subscribers[event_type]:
                 try:
@@ -60,4 +59,10 @@ class EventBus:
     @classmethod
     def clear_history(cls):
         """Clear event history."""
+        cls._history.clear()
+
+    @classmethod
+    def reset(cls):
+        """Reset all subscribers and history. Useful for testing."""
+        cls._subscribers.clear()
         cls._history.clear()

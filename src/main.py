@@ -1,27 +1,50 @@
 import argparse
-import sys
-import os
 import json
+import os
+import sys
+
+from .agents.documenter import DocumenterAgent
 from .agents.executor import ExecutorAgent
 from .agents.planner import PlannerAgent
 from .agents.tester import TesterAgent
-from .agents.documenter import DocumenterAgent
-from colorama import init, Fore, Style
+from .core.database import get_session_direct, init_db
+from .core.events import EventBus
+from .core.logger import get_logger
+from .core.models import AgentLog, Project, Task, TaskStatus
 
-init(autoreset=True)
+logger = get_logger("main")
 
 STATE_FILE = "workspace/state.json"
+
 
 def save_state(state):
     os.makedirs("workspace", exist_ok=True)
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=4)
 
+
 def load_state():
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {"phase": 1, "plan": None, "retries": 0}
+
+
+def _log_to_db(task_id, agent_name, level, message, data=None):
+    session = get_session_direct()
+    try:
+        entry = AgentLog(
+            task_id=task_id,
+            agent_name=agent_name,
+            level=level,
+            message=message,
+            structured_data=json.dumps(data) if data else None,
+        )
+        session.add(entry)
+        session.commit()
+    finally:
+        session.close()
+
 
 def main():
     parser = argparse.ArgumentParser(description="Mini Software House Orchestrator")
@@ -30,13 +53,41 @@ def main():
     parser.add_argument("--resume", action="store_true", help="Resume from last state")
     args = parser.parse_args()
 
-    state = load_state() if args.resume else {"phase": 1, "plan": None, "retries": args.max_retries, "task": args.task}
-    
+    state = (
+        load_state()
+        if args.resume
+        else {"phase": 1, "plan": None, "retries": args.max_retries, "task": args.task}
+    )
+
     if not state.get("task"):
-        print(Fore.RED + "Error: Task must be provided if not resuming.")
+        logger.error("no_task_provided")
         sys.exit(1)
 
-    print(Fore.BLUE + f"Starting Mini Software House Pipeline for task: {state['task']}")
+    # Initialize DB
+    init_db()
+
+    # Create DB records
+    session = get_session_direct()
+    try:
+        project = Project(name=state["task"][:120], path="workspace")
+        session.add(project)
+        session.commit()
+        session.refresh(project)
+
+        db_task = Task(
+            project_id=project.id,
+            description=state["task"],
+            status=TaskStatus.IN_PROGRESS,
+        )
+        session.add(db_task)
+        session.commit()
+        session.refresh(db_task)
+        task_id = db_task.id
+    finally:
+        session.close()
+
+    logger.info("pipeline.starting", task=state["task"])
+    EventBus.publish("pipeline.started", {"request": state["task"]})
 
     planner = PlannerAgent()
     executor = ExecutorAgent()
@@ -45,75 +96,120 @@ def main():
 
     # Step 1: Planning
     if state["phase"] <= 1:
-        print(Fore.CYAN + "\n--- Phase 1: Planning ---")
+        logger.info("phase.starting", phase="planning")
+        EventBus.publish("phase.started", {"phase": "planning"})
         plan = planner.plan_task(state["task"])
         if not plan:
-            print(Fore.RED + "Failed to generate a valid plan. Exiting.")
+            logger.error("planning.failed")
+            _log_to_db(task_id, "planner", "ERROR", "Failed to generate plan")
             sys.exit(1)
-        
+
         state["plan"] = plan
         state["phase"] = 2
         save_state(state)
-        print(Fore.CYAN + "Plan generated successfully.")
+        logger.info("phase.completed", phase="planning")
+        EventBus.publish("phase.completed", {"phase": "planning"})
+        _log_to_db(task_id, "planner", "INFO", "Plan generated", plan)
 
     # Step 2: Execution
     if state["phase"] <= 2:
-        print(Fore.GREEN + "\n--- Phase 2: Execution ---")
+        logger.info("phase.starting", phase="execution")
+        EventBus.publish("phase.started", {"phase": "development"})
         plan = state["plan"]
-        exec_task = f"User Request: {state['task']}\n\nPlan:\nArchitecture: {plan.get('architecture')}\nFiles to create: {plan.get('files_to_create')}\nSteps: {plan.get('logical_steps')}\n\nImplement the required files."
+        exec_task = (
+            f"User Request: {state['task']}\n\n"
+            f"Plan:\nArchitecture: {plan.get('architecture')}\n"
+            f"Files to create: {plan.get('files_to_create')}\n"
+            f"Steps: {plan.get('logical_steps')}\n\nImplement the required files."
+        )
         response, saved_files = executor.execute_task(exec_task)
-        
+
         if not saved_files:
-            print(Fore.RED + "Executor failed to create any files. Exiting.")
+            logger.error("execution.no_files_created")
+            _log_to_db(task_id, "executor", "ERROR", "No files created")
             sys.exit(1)
 
-        print(Fore.GREEN + f"Files created: {', '.join(saved_files)}")
+        logger.info("execution.files_created", files=saved_files)
+        _log_to_db(task_id, "executor", "INFO", "Files created", {"files": saved_files})
+        EventBus.publish("phase.completed", {"phase": "development"})
         state["phase"] = 3
         save_state(state)
 
     # Step 3: Testing & Self-Healing
     if state["phase"] <= 3:
-        print(Fore.YELLOW + "\n--- Phase 3: Testing & Self-Healing ---")
+        logger.info("phase.starting", phase="testing")
+        EventBus.publish("phase.started", {"phase": "testing"})
         tests_passed = False
 
         while state["retries"] > 0:
-            print(Fore.YELLOW + f"Generating tests for workspace (Retries left: {state['retries']})...")
+            logger.info("testing.attempt", retries_left=state["retries"])
             tester.generate_tests()
-            
-            print(Fore.YELLOW + "Running tests...")
+
             test_result = tester.run_tests()
             exit_code = test_result.get("exit_code", -1)
-            
+
             if exit_code == 0:
-                print(Fore.GREEN + "Tests passed successfully!")
+                logger.info("testing.passed")
+                _log_to_db(task_id, "tester", "INFO", "Tests passed")
                 tests_passed = True
                 break
             else:
-                print(Fore.RED + f"Tests failed with exit code {exit_code}.")
-                error_output = tester.parse_error(test_result.get('output', 'Unknown error'))
-                print(Fore.YELLOW + "Sending feedback to Executor...")
-                
-                feedback_task = f"The previous code failed the tests. Please fix the errors.\n\nError output:\n{error_output}"
+                logger.warning("testing.failed", exit_code=exit_code)
+                EventBus.publish(
+                    "test.failed",
+                    {"exit_code": exit_code, "retries_left": state["retries"]},
+                )
+                error_output = tester.parse_error(test_result.get("output", "Unknown error"))
+                _log_to_db(
+                    task_id,
+                    "tester",
+                    "WARNING",
+                    "Tests failed",
+                    {"error": error_output[:500]},
+                )
+
+                feedback_task = (
+                    "The previous code failed the tests. "
+                    f"Please fix the errors.\n\nError output:\n{error_output}"
+                )
                 executor.execute_task(feedback_task)
                 state["retries"] -= 1
                 save_state(state)
 
         if not tests_passed:
-            print(Fore.RED + "Max retries reached. Tests are still failing. Proceeding to documentation anyway.")
-            
+            logger.error("testing.max_retries_exhausted")
+            _log_to_db(task_id, "tester", "ERROR", "Max retries reached, tests still failing")
+
+        EventBus.publish("phase.completed", {"phase": "testing"})
         state["phase"] = 4
         save_state(state)
 
     # Step 4: Documentation
     if state["phase"] <= 4:
-        print(Fore.MAGENTA + "\n--- Phase 4: Documentation ---")
+        logger.info("phase.starting", phase="documentation")
+        EventBus.publish("phase.started", {"phase": "documentation"})
         documenter.generate_documentation()
-        print(Fore.MAGENTA + "Documentation generated successfully.")
-        
+        logger.info("phase.completed", phase="documentation")
+        EventBus.publish("phase.completed", {"phase": "documentation"})
+        _log_to_db(task_id, "documenter", "INFO", "Documentation generated")
+
         state["phase"] = 5
         save_state(state)
 
-    print(Fore.BLUE + "\nPipeline finished.")
+    # Mark DB task complete
+    session = get_session_direct()
+    try:
+        db_task = session.get(Task, task_id)
+        if db_task:
+            db_task.status = TaskStatus.COMPLETED
+            session.add(db_task)
+            session.commit()
+    finally:
+        session.close()
+
+    logger.info("pipeline.finished")
+    EventBus.publish("pipeline.finished", {"status": "success"})
+
 
 if __name__ == "__main__":
     main()
