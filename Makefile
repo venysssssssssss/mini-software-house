@@ -253,5 +253,50 @@ info: ## Show system and project info
 	@echo "$(BLUE)=== Directory Structure ===$(NC)"
 	@ls -la | grep '^d'
 
+# Fine-tuning Pipeline
+finetune-export: ## Export training data from DB to JSONL
+	@echo "$(BLUE)Exporting training data...$(NC)"
+	poetry run python scripts/finetune/export_training_data.py --all --output data/finetune
+	poetry run python scripts/finetune/export_training_data.py --validate --output data/finetune
+	@echo "$(GREEN)Export complete$(NC)"
+
+finetune-train: finetune-export ## SFT fine-tune all priority agents
+	@echo "$(BLUE)Training SFT models (one at a time for 4GB VRAM)...$(NC)"
+	@echo "$(YELLOW)Stop Ollama first: systemctl --user stop ollama$(NC)"
+	poetry run python scripts/finetune/train_sft.py --agent planner  --data data/finetune/sft/planner.jsonl
+	poetry run python scripts/finetune/train_sft.py --agent executor --data data/finetune/sft/executor.jsonl
+	poetry run python scripts/finetune/train_sft.py --agent tester   --data data/finetune/sft/tester.jsonl
+	@echo "$(GREEN)SFT training complete$(NC)"
+
+finetune-dpo: finetune-train ## DPO fine-tune agents with correction data
+	@echo "$(BLUE)Training DPO models...$(NC)"
+	poetry run python scripts/finetune/train_dpo.py --agent executor --sft-model models/finetune/executor/lora --data data/finetune/dpo/executor.jsonl
+	poetry run python scripts/finetune/train_dpo.py --agent tester   --sft-model models/finetune/tester/lora   --data data/finetune/dpo/tester.jsonl
+	@echo "$(GREEN)DPO training complete$(NC)"
+
+finetune-export-gguf: ## Convert fine-tuned models to GGUF
+	@echo "$(BLUE)Exporting to GGUF...$(NC)"
+	poetry run python scripts/finetune/export_gguf.py --agent planner    --model models/finetune/planner/lora
+	poetry run python scripts/finetune/export_gguf.py --agent executor   --model models/finetune/executor_dpo/lora
+	poetry run python scripts/finetune/export_gguf.py --agent tester     --model models/finetune/tester_dpo/lora
+	poetry run python scripts/finetune/export_gguf.py --agent documenter --model models/finetune/documenter/lora
+	@echo "$(GREEN)GGUF export complete$(NC)"
+
+finetune-deploy: finetune-export-gguf ## Register fine-tuned models in Ollama
+	@echo "$(BLUE)Registering models in Ollama...$(NC)"
+	ollama create planner-ft    -f modelfiles/Modelfile.planner-ft
+	ollama create executor-ft   -f modelfiles/Modelfile.executor-ft
+	ollama create tester-ft     -f modelfiles/Modelfile.tester-ft
+	ollama create documenter-ft -f modelfiles/Modelfile.documenter-ft
+	@echo "$(GREEN)Deployment complete. Set USE_FINETUNED_MODELS=true to use.$(NC)"
+
+finetune-eval: ## Evaluate fine-tuned models (A/B comparison)
+	@echo "$(BLUE)Running evaluation...$(NC)"
+	poetry run python scripts/finetune/evaluate.py --config finetuned --output results/eval_ft.json --db software_house.db
+	@echo "$(GREEN)Evaluation complete$(NC)"
+
+finetune-all: finetune-deploy finetune-eval ## Full fine-tuning pipeline (export -> train -> deploy -> eval)
+	@echo "$(GREEN)Fine-tuning pipeline complete!$(NC)"
+
 # Default target
 .DEFAULT_GOAL := help

@@ -2,11 +2,17 @@
 
 from unittest.mock import patch
 
-from src.agents.base import Agent, get_model_for_role
+from src.agents.base import (
+    BASE_MODELS,
+    FINETUNED_MODELS,
+    Agent,
+    get_model_for_role,
+)
 
 
 class TestGetModelForRole:
-    def test_known_roles(self):
+    def test_known_roles_base(self, monkeypatch):
+        monkeypatch.delenv("USE_FINETUNED_MODELS", raising=False)
         assert get_model_for_role("planner") == "qwen2.5:3b"
         assert get_model_for_role("backend") == "qwen2.5-coder:3b"
         assert get_model_for_role("frontend") == "qwen2.5-coder:1.5b"
@@ -14,9 +20,41 @@ class TestGetModelForRole:
         assert get_model_for_role("documenter") == "gemma2:2b"
         assert get_model_for_role("rag") == "phi3:mini"
 
-    def test_unknown_role_returns_default(self):
+    def test_unknown_role_returns_default(self, monkeypatch):
+        monkeypatch.delenv("USE_FINETUNED_MODELS", raising=False)
         assert get_model_for_role("unknown") == "qwen2.5:3b"
         assert get_model_for_role("") == "qwen2.5:3b"
+
+    def test_finetuned_models_when_enabled(self, monkeypatch):
+        monkeypatch.setenv("USE_FINETUNED_MODELS", "true")
+        assert get_model_for_role("planner") == "planner-ft"
+        assert get_model_for_role("backend") == "executor-ft"
+        assert get_model_for_role("tester") == "tester-ft"
+        assert get_model_for_role("documenter") == "documenter-ft"
+
+    def test_finetuned_fallback_for_roles_without_ft(self, monkeypatch):
+        monkeypatch.setenv("USE_FINETUNED_MODELS", "true")
+        # frontend and rag have no fine-tuned variant
+        assert get_model_for_role("frontend") == "qwen2.5-coder:1.5b"
+        assert get_model_for_role("rag") == "phi3:mini"
+
+    def test_finetuned_false_uses_base(self, monkeypatch):
+        monkeypatch.setenv("USE_FINETUNED_MODELS", "false")
+        assert get_model_for_role("planner") == "qwen2.5:3b"
+
+    def test_finetuned_env_case_insensitive(self, monkeypatch):
+        monkeypatch.setenv("USE_FINETUNED_MODELS", "TRUE")
+        assert get_model_for_role("planner") == "planner-ft"
+
+    def test_base_models_dict_complete(self):
+        assert len(BASE_MODELS) == 6
+        for role in ["planner", "backend", "frontend", "tester", "documenter", "rag"]:
+            assert role in BASE_MODELS
+
+    def test_finetuned_models_dict(self):
+        assert len(FINETUNED_MODELS) == 4
+        assert "frontend" not in FINETUNED_MODELS
+        assert "rag" not in FINETUNED_MODELS
 
 
 class TestAgentChatHistory:

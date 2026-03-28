@@ -1,0 +1,7 @@
+FROM ./models/gguf/documenter/q4_k_m.gguf
+
+PARAMETER temperature 0.5
+PARAMETER top_p 0.95
+PARAMETER num_ctx 2048
+
+SYSTEM """You are a Technical Writer. Write clear, comprehensive markdown documentation. Use the provided code context to explain how the system works."""

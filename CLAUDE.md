@@ -29,6 +29,13 @@ Mini Software House is an AI-powered software development pipeline that uses mul
 | `make clean-db` | Remove database |
 | `make setup` | Full environment setup (Python, Rust, Ollama) |
 | `make verify` | Verify setup completeness |
+| `make finetune-export` | Export training data from DB to JSONL |
+| `make finetune-train` | SFT fine-tune all priority agents |
+| `make finetune-dpo` | DPO fine-tune agents with correction data |
+| `make finetune-export-gguf` | Convert fine-tuned models to GGUF |
+| `make finetune-deploy` | Register fine-tuned models in Ollama |
+| `make finetune-eval` | Evaluate fine-tuned models (A/B comparison) |
+| `make finetune-all` | Full fine-tuning pipeline (export -> train -> deploy -> eval) |
 
 <!-- /AUTO-GENERATED -->
 
@@ -56,6 +63,8 @@ First-time setup: `python scripts/setup/setup_environment.py` (installs Python, 
 
 **Performance bridge** (`src/utils/performance_bridge.py`): Python FFI wrapper for Rust crates. `RustASTParser` loads `libast_parser.so` via ctypes. `ContextManager` uses Rust AST when available (~2.6x faster than Python ast).
 
+**Fine-tuning pipeline** (`scripts/finetune/`): Data flywheel that exports pipeline data, fine-tunes models, and deploys them back into Ollama. Scripts: `export_training_data.py` (SQLite → SFT/DPO JSONL), `train_sft.py` (QLoRA SFT via Unsloth), `train_dpo.py` (DPO on SFT adapters), `export_gguf.py` (LoRA merge + GGUF Q4_K_M export), `evaluate.py` (A/B metrics comparison). Ollama Modelfiles in `modelfiles/`. Toggle via `USE_FINETUNED_MODELS=true` env var.
+
 **Pipeline output** goes to `workspace/{project_name}/` (gitignored) — state.json, logs, and generated code.
 
 ## Database Models
@@ -79,17 +88,20 @@ First-time setup: `python scripts/setup/setup_environment.py` (installs Python, 
 - Database: SQLite at `software_house.db` (gitignored); pipeline state at `workspace/state.json`
 - Executor creates workspace subdirectories using the plan's `project_name` (e.g., `workspace/build-todo-api/`)
 - Tester hallucination guard rejects code corrections that change >80% of the original file
+- `USE_FINETUNED_MODELS=true` enables fine-tuned model variants (planner-ft, executor-ft, tester-ft, documenter-ft); default is `false` (base models)
+- Fine-tuning scripts lazy-import ML deps (unsloth, trl, torch) — they are not required at module level
 
 ## Test Suite
 
-- **120 Python tests** (unit + integration), all passing
+- **252 Python tests** (unit + integration), all passing
 - **9 Rust tests** (ast_parser crate), all passing
-- **83% coverage** on agents + core modules
+- **98% coverage** on finetune modules; 83% on agents + core
 - Run: `make test` (all), `make test-unit`, `make test-integration`, `make rust-test`
-- Key test patterns: mocked Ollama via `@patch("src.agents.base.ollama")`, in-memory SQLite for DB isolation, `tmp_path` for workspace files
+- Key test patterns: mocked Ollama via `@patch("src.agents.base.ollama")`, in-memory SQLite for DB isolation, `tmp_path` for workspace files, mocked ML imports via `builtins.__import__` monkeypatching for GPU-dependent code
 
 ## Sprint Status
 
 - **Sprint 1** (Stability): Complete -- core infra wired, 82 tests, CI
 - **Sprint 2** (Intelligence): Complete -- metrics, dashboard v2, executor improvements, tester self-healing, Rust ast_parser FFI, 120 tests
+- **Sprint FT** (Fine-Tuning): Complete -- data export pipeline, SFT/DPO training scripts, GGUF export, Ollama Modelfiles, evaluation harness, Makefile automation, 252 tests
 - **Sprint 3** (Experience): Not started -- FastAPI, Git integration, project isolation, plugins

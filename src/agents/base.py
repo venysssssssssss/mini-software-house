@@ -1,3 +1,4 @@
+import os
 import time
 from dataclasses import dataclass
 
@@ -8,20 +9,37 @@ from ..core.logger import get_logger
 
 init(autoreset=True)
 
+# Base models (original, pre-fine-tuning)
+BASE_MODELS = {
+    "planner": "qwen2.5:3b",
+    "backend": "qwen2.5-coder:3b",
+    "frontend": "qwen2.5-coder:1.5b",
+    "tester": "deepseek-coder:1.3b",
+    "documenter": "gemma2:2b",
+    "rag": "phi3:mini",
+}
+
+# Fine-tuned model variants (created by Sprint FT pipeline)
+FINETUNED_MODELS = {
+    "planner": "planner-ft",
+    "backend": "executor-ft",
+    "tester": "tester-ft",
+    "documenter": "documenter-ft",
+}
+
 
 def get_model_for_role(role: str) -> str:
+    """Returns model for a given role, fitting within 4GB VRAM limit.
+
+    When USE_FINETUNED_MODELS=true (default: false), returns fine-tuned
+    variants for roles that have them. Falls back to base models otherwise.
     """
-    Returns an optimized model for a given role, fitting within 4GB VRAM limit.
-    """
-    models = {
-        "planner": "qwen2.5:3b",
-        "backend": "qwen2.5-coder:3b",
-        "frontend": "qwen2.5-coder:1.5b",
-        "tester": "deepseek-coder:1.3b",
-        "documenter": "gemma2:2b",
-        "rag": "phi3:mini",
-    }
-    return models.get(role, "qwen2.5:3b")
+    use_ft = os.getenv("USE_FINETUNED_MODELS", "false").lower() == "true"
+    if use_ft:
+        ft_model = FINETUNED_MODELS.get(role)
+        if ft_model:
+            return ft_model
+    return BASE_MODELS.get(role, "qwen2.5:3b")
 
 
 @dataclass

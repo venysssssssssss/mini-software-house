@@ -17,11 +17,13 @@ Arquitetura, roadmap e otimizações do sistema.
 - [PERFORMANCE_OPTIMIZATION_PLAN.md](architecture/PERFORMANCE_OPTIMIZATION_PLAN.md) - Estratégia de otimização
 - [OPTIMIZATION_SUMMARY.md](architecture/OPTIMIZATION_SUMMARY.md) - Resumo executivo
 
-### 📅 Sprint Plan
+### 📅 Sprint Plans
 - [SPRINT_PLAN.md](SPRINT_PLAN.md) - 3-sprint improvement plan (Stability -> Intelligence -> Experience)
   - Sprint 1 (Stability): Complete -- wiring, tests, CI
   - Sprint 2 (Intelligence): Complete -- metrics, dashboard, executor, tester, Rust FFI
   - Sprint 3 (Experience): Not started
+- [SPRINT3_PLAN.md](SPRINT3_PLAN.md) - Sprint 3 detailed implementation plan (6 phases)
+- [SPRINT_FINETUNE.md](SPRINT_FINETUNE.md) - Fine-tuning sprint: QLoRA SFT/DPO for all 6 agent models on GTX 1050 Ti
 
 ### 🔧 [`setup/`](setup/)
 Configuração ambiental e checklist de setup.
