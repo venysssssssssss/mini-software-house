@@ -212,6 +212,96 @@ def create_project(
         }
 
 
+def _cmd_list_runs():
+    """List all pipeline runs from the database."""
+    from src.core.database import get_session_direct, init_db
+    from src.core.models import PipelineRun
+
+    init_db()
+    session = get_session_direct()
+    try:
+        runs = session.query(PipelineRun).order_by(PipelineRun.id.desc()).all()
+        if not runs:
+            print(f"{Fore.YELLOW}No pipeline runs found.{Style.RESET_ALL}")
+            return 0
+
+        print(
+            f"\n{'ID':>4}  {'Status':<12}  {'Phases':>6}  {'Time':>8}  {'Request':<40}  {'Workspace'}"
+        )
+        print("-" * 110)
+        for run in runs:
+            time_str = f"{run.execution_time_s:.1f}s" if run.execution_time_s else "-"
+            req = (run.user_request[:38] + "..") if len(run.user_request) > 40 else run.user_request
+            ws = run.workspace_path or "-"
+            print(
+                f"{run.id:>4}  {run.status.value:<12}  {run.completed_phases}/{run.total_phases:>3}  {time_str:>8}  {req:<40}  {ws}"
+            )
+        print()
+        return 0
+    finally:
+        session.close()
+
+
+def _cmd_run_status(run_id: int):
+    """Show detailed status for a pipeline run."""
+    from src.core.database import get_session_direct, init_db
+    from src.core.models import PipelineRun
+
+    init_db()
+    session = get_session_direct()
+    try:
+        run = session.get(PipelineRun, run_id)
+        if not run:
+            print(f"{Fore.RED}Run {run_id} not found.{Style.RESET_ALL}")
+            return 1
+
+        print(f"\n{Fore.BLUE}Pipeline Run #{run.id}{Style.RESET_ALL}")
+        print(f"  Status:       {run.status.value}")
+        print(f"  Request:      {run.user_request}")
+        print(f"  Phases:       {run.completed_phases}/{run.total_phases}")
+        print(f"  Time:         {run.execution_time_s or '-'}s")
+        print(
+            f"  Tokens:       {run.total_prompt_tokens} prompt / {run.total_response_tokens} response"
+        )
+        print(f"  Agent calls:  {run.total_agent_calls}")
+        print(f"  Workspace:    {run.workspace_path or '-'}")
+        print(f"  Git commit:   {run.git_commit_hash or '-'}")
+        print(f"  Started:      {run.started_at}")
+        print(f"  Finished:     {run.finished_at or '-'}")
+        print()
+        return 0
+    finally:
+        session.close()
+
+
+def _cmd_resume(run_id: int):
+    """Resume a failed pipeline run."""
+    from src.core.database import get_session_direct, init_db
+    from src.core.models import PipelineRun
+
+    init_db()
+    session = get_session_direct()
+    try:
+        run = session.get(PipelineRun, run_id)
+        if not run:
+            print(f"{Fore.RED}Run {run_id} not found.{Style.RESET_ALL}")
+            return 1
+
+        if run.status.value == "completed":
+            print(f"{Fore.YELLOW}Run {run_id} already completed.{Style.RESET_ALL}")
+            return 0
+
+        print(f"{Fore.BLUE}Resuming run #{run_id}: {run.user_request}{Style.RESET_ALL}")
+        from src.agents.orchestrator import OrchestratorAgent
+
+        orchestrator = OrchestratorAgent()
+        result = orchestrator.execute_pipeline(run.user_request)
+        print(json.dumps(result, indent=2, default=str))
+        return 0 if result.get("status") == "success" else 1
+    finally:
+        session.close()
+
+
 def main_cli():
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(
@@ -255,6 +345,17 @@ def main_cli():
     # Status command
     status_parser = subparsers.add_parser("status", help="Check system status")
 
+    # Pipeline list command
+    list_parser = subparsers.add_parser("list", help="List all pipeline runs")
+
+    # Pipeline run status command
+    run_status_parser = subparsers.add_parser("run-status", help="Show pipeline run details")
+    run_status_parser.add_argument("run_id", type=int, help="Pipeline run ID")
+
+    # Resume command
+    resume_parser = subparsers.add_parser("resume", help="Resume a failed pipeline run")
+    resume_parser.add_argument("run_id", type=int, help="Pipeline run ID to resume")
+
     args = parser.parse_args()
 
     if args.command == "create":
@@ -294,6 +395,15 @@ def main_cli():
                 print(f"  - GPU {stat.gpu_id}: {stat.name}")
 
         return 0
+
+    elif args.command == "list":
+        return _cmd_list_runs()
+
+    elif args.command == "run-status":
+        return _cmd_run_status(args.run_id)
+
+    elif args.command == "resume":
+        return _cmd_resume(args.run_id)
 
     else:
         parser.print_help()

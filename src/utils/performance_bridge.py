@@ -93,17 +93,127 @@ def get_rust_ast_parser() -> RustASTParser:
     return _rust_ast
 
 
+class RustJSONParser:
+    """FFI wrapper for the Rust json_parser crate."""
+
+    def __init__(self):
+        self._lib = None
+        self._available = False
+        lib_path = _find_lib("json_parser")
+        if lib_path:
+            try:
+                self._lib = ctypes.CDLL(str(lib_path))
+
+                # parse_json_c_ffi(ptr: *const u8, len: usize) -> *mut u8
+                self._lib.parse_json_c_ffi.argtypes = [ctypes.c_char_p, ctypes.c_size_t]
+                self._lib.parse_json_c_ffi.restype = ctypes.c_void_p
+
+                # free_json_string(ptr: *mut u8)
+                self._lib.free_json_string.argtypes = [ctypes.c_void_p]
+                self._lib.free_json_string.restype = None
+
+                self._available = True
+                logger.info("rust_json_parser_loaded", path=str(lib_path))
+            except Exception as e:
+                logger.warning("rust_json_parser_load_failed", error=str(e))
+
+    @property
+    def available(self) -> bool:
+        return self._available
+
+    def parse(self, json_str: str) -> dict:
+        """Parse JSON using Rust. Falls back to json.loads()."""
+        if not self._available:
+            return json.loads(json_str)
+
+        encoded = json_str.encode("utf-8")
+        ptr = self._lib.parse_json_c_ffi(encoded, len(encoded))
+        if not ptr:
+            return json.loads(json_str)
+
+        result_bytes = ctypes.cast(ptr, ctypes.c_char_p).value
+        self._lib.free_json_string(ptr)
+        return json.loads(result_bytes.decode("utf-8"))
+
+
+class RustOllamaClient:
+    """FFI wrapper for the Rust ollama_client crate."""
+
+    def __init__(self):
+        self._lib = None
+        self._available = False
+        lib_path = _find_lib("ollama_client")
+        if lib_path:
+            try:
+                self._lib = ctypes.CDLL(str(lib_path))
+
+                # ollama_chat(model: *const c_char, prompt: *const c_char) -> *mut c_char
+                self._lib.ollama_chat.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+                self._lib.ollama_chat.restype = ctypes.c_void_p
+
+                # ollama_free_string(ptr: *mut c_char)
+                self._lib.ollama_free_string.argtypes = [ctypes.c_void_p]
+                self._lib.ollama_free_string.restype = None
+
+                self._available = True
+                logger.info("rust_ollama_client_loaded", path=str(lib_path))
+            except Exception as e:
+                logger.warning("rust_ollama_client_load_failed", error=str(e))
+
+    @property
+    def available(self) -> bool:
+        return self._available
+
+    def chat(self, model: str, prompt: str) -> str:
+        """Send a chat request via Rust FFI. Falls back to Python ollama."""
+        if not self._available:
+            import ollama
+
+            resp = ollama.chat(model=model, messages=[{"role": "user", "content": prompt}])
+            return resp["message"]["content"]
+
+        ptr = self._lib.ollama_chat(model.encode("utf-8"), prompt.encode("utf-8"))
+        if not ptr:
+            raise RuntimeError("Rust ollama_chat returned null")
+
+        result = ctypes.cast(ptr, ctypes.c_char_p).value.decode("utf-8")
+        self._lib.ollama_free_string(ptr)
+        resp = json.loads(result)
+        return resp.get("response", "")
+
+
+_rust_json = RustJSONParser()
+_rust_ollama = RustOllamaClient()
+
+
+def get_rust_json_parser() -> RustJSONParser:
+    """Return the singleton Rust JSON parser."""
+    return _rust_json
+
+
+def get_rust_ollama_client() -> RustOllamaClient:
+    """Return the singleton Rust Ollama client."""
+    return _rust_ollama
+
+
 class RustBridge:
     """Universal bridge to Rust optimization modules"""
 
     def __init__(self):
         self.lib_cache = {}
         self.ast_parser = _rust_ast
+        self.json_parser = _rust_json
+        self.ollama_client = _rust_ollama
         self._load_libraries()
 
     def _load_libraries(self):
         """Load all available Rust libraries with fallback"""
-        libs = ["libjson_parser", "libperformance_core", "libdocker_log_streamer"]
+        libs = [
+            "libjson_parser",
+            "libperformance_core",
+            "libdocker_log_streamer",
+            "libollama_client",
+        ]
 
         for lib_name in libs:
             lib_path = _find_lib(lib_name.removeprefix("lib"))
@@ -118,7 +228,9 @@ class RustBridge:
             self.lib_cache["libast_parser"] = self.ast_parser._lib
 
     def parse_json_fast(self, json_str: str) -> Dict[str, Any]:
-        """Fast JSON parsing (falls back to Python stdlib)."""
+        """Fast JSON parsing using Rust when available, falls back to Python stdlib."""
+        if self.json_parser.available:
+            return self.json_parser.parse(json_str)
         try:
             return json.loads(json_str)
         except json.JSONDecodeError as e:

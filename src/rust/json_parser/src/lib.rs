@@ -95,4 +95,44 @@ mod tests {
         let result = to_json_fast(&val);
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn test_roundtrip() {
+        let input = r#"{"a":1,"b":"hello","c":[true,false,null]}"#;
+        let parsed = parse_fast(input).unwrap();
+        let serialized = to_json_fast(&parsed).unwrap();
+        let reparsed = parse_fast(&serialized).unwrap();
+        assert_eq!(parsed, reparsed);
+    }
+
+    #[test]
+    fn test_malformed_input() {
+        let result = parse_fast("{invalid json}");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_empty_input() {
+        let result = parse_fast("");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_nested_objects() {
+        let json = r#"{"a":{"b":{"c":{"d":"deep"}}}}"#;
+        let result = parse_fast(json).unwrap();
+        assert_eq!(result["a"]["b"]["c"]["d"], "deep");
+    }
+
+    #[test]
+    fn test_c_ffi_null_ptr() {
+        let result = parse_json_c_ffi(std::ptr::null(), 0);
+        assert!(result.is_null());
+    }
+
+    #[test]
+    fn test_benchmark_runs() {
+        let elapsed = benchmark_parse_iterations(100);
+        assert!(elapsed > 0.0);
+    }
 }

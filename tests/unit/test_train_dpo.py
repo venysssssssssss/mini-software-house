@@ -52,11 +52,15 @@ class TestValidateDPOData:
         data_file = tmp_path / "dpo.jsonl"
         lines = []
         for i in range(count):
-            lines.append(json.dumps({
-                "prompt": f"Fix error {i}",
-                "chosen": f"correct code {i}",
-                "rejected": f"broken code {i}",
-            }))
+            lines.append(
+                json.dumps(
+                    {
+                        "prompt": f"Fix error {i}",
+                        "chosen": f"correct code {i}",
+                        "rejected": f"broken code {i}",
+                    }
+                )
+            )
         data_file.write_text("\n".join(lines) + "\n")
         return str(data_file)
 
@@ -89,11 +93,15 @@ class TestValidateDPOData:
     def test_skips_blank_lines(self, tmp_path):
         lines = []
         for i in range(MINIMUM_DPO_PAIRS):
-            lines.append(json.dumps({
-                "prompt": f"p{i}",
-                "chosen": f"c{i}",
-                "rejected": f"r{i}",
-            }))
+            lines.append(
+                json.dumps(
+                    {
+                        "prompt": f"p{i}",
+                        "chosen": f"c{i}",
+                        "rejected": f"r{i}",
+                    }
+                )
+            )
         data_file = tmp_path / "blanks.jsonl"
         data_file.write_text("\n".join(lines) + "\n\n")
         count = validate_dpo_data(str(data_file))
@@ -140,13 +148,20 @@ class TestMainCLI:
         """When unsloth is not installed, train_dpo() should sys.exit(1)."""
         lines = []
         for i in range(MINIMUM_DPO_PAIRS):
-            lines.append(json.dumps({
-                "prompt": f"p{i}", "chosen": f"c{i}", "rejected": f"r{i}",
-            }))
+            lines.append(
+                json.dumps(
+                    {
+                        "prompt": f"p{i}",
+                        "chosen": f"c{i}",
+                        "rejected": f"r{i}",
+                    }
+                )
+            )
         data_file = tmp_path / "dpo.jsonl"
         data_file.write_text("\n".join(lines) + "\n")
 
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -173,9 +188,15 @@ class TestTrainDPOWithMockedML:
     def _make_dpo_data(self, tmp_path):
         lines = []
         for i in range(MINIMUM_DPO_PAIRS):
-            lines.append(json.dumps({
-                "prompt": f"p{i}", "chosen": f"c{i}", "rejected": f"r{i}",
-            }))
+            lines.append(
+                json.dumps(
+                    {
+                        "prompt": f"p{i}",
+                        "chosen": f"c{i}",
+                        "rejected": f"r{i}",
+                    }
+                )
+            )
         data_file = tmp_path / "dpo.jsonl"
         data_file.write_text("\n".join(lines) + "\n")
         return str(data_file)
@@ -203,6 +224,7 @@ class TestTrainDPOWithMockedML:
         mock_dpo_trainer_cls.return_value = mock_trainer
 
         import builtins
+
         real_import = builtins.__import__
         mock_modules = {
             "unsloth": MagicMock(
@@ -241,6 +263,7 @@ class TestTrainDPOWithMockedML:
         data_path = self._make_dpo_data(tmp_path)
 
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -263,6 +286,7 @@ class TestTrainDPOWithMockedML:
         data_path = self._make_dpo_data(tmp_path)
 
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -286,12 +310,18 @@ class TestTrainDPOWithMockedML:
         mock_train = MagicMock()
         monkeypatch.setattr(train_dpo, "train_dpo", mock_train)
 
-        train_dpo.main([
-            "--agent", "executor",
-            "--sft-model", str(tmp_path),
-            "--data", data_path,
-            "--output", str(tmp_path / "out"),
-        ])
+        train_dpo.main(
+            [
+                "--agent",
+                "executor",
+                "--sft-model",
+                str(tmp_path),
+                "--data",
+                data_path,
+                "--output",
+                str(tmp_path / "out"),
+            ]
+        )
 
         mock_train.assert_called_once_with(
             agent_name="executor",

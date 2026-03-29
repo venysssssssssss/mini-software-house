@@ -1,6 +1,5 @@
 """Tests for scripts/finetune/export_gguf.py — 100% coverage on testable code."""
 
-
 import pytest
 
 from scripts.finetune.export_gguf import (
@@ -122,6 +121,7 @@ class TestMainCLI:
         (adapter_dir / "adapter_config.json").write_text("{}")
 
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -160,6 +160,7 @@ class TestExportWithMockedML:
         mock_flm.from_pretrained.return_value = (mock_model, mock_tokenizer)
 
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -193,6 +194,7 @@ class TestExportWithMockedML:
         mock_flm.from_pretrained.return_value = (mock_model, mock_tokenizer)
 
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -223,11 +225,16 @@ class TestExportWithMockedML:
         mock_export = MagicMock()
         monkeypatch.setattr(export_gguf, "export", mock_export)
 
-        export_gguf.main([
-            "--agent", "planner",
-            "--model", str(adapter_dir),
-            "--output", str(tmp_path / "gguf"),
-        ])
+        export_gguf.main(
+            [
+                "--agent",
+                "planner",
+                "--model",
+                str(adapter_dir),
+                "--output",
+                str(tmp_path / "gguf"),
+            ]
+        )
 
         mock_export.assert_called_once()
         call_kwargs = mock_export.call_args[1]

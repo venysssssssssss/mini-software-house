@@ -41,11 +41,15 @@ run: ## Run the pipeline (use: make run TASK="description")
 		exit 1; \
 	fi
 	@echo "$(BLUE)Running pipeline: $(TASK)$(NC)"
-	poetry run python -m src.main --task "$(TASK)"
+	poetry run python -m src.main --task "$(TASK)" $(if $(GIT),--git,)
 
 resume: ## Resume from last pipeline state
 	@echo "$(BLUE)Resuming pipeline...$(NC)"
 	poetry run python -m src.main --resume
+
+api: ## Start FastAPI server (port 8000)
+	@echo "$(BLUE)Starting API at http://localhost:8000$(NC)"
+	poetry run uvicorn src.api.app:create_app --factory --host 0.0.0.0 --port 8000 --reload
 
 dashboard: ## Start Streamlit dashboard
 	@echo "$(BLUE)Starting dashboard at http://localhost:8501$(NC)"

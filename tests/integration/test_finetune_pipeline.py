@@ -86,9 +86,11 @@ def seeded_db(ft_engine):
                     response_tokens=50 + i * 10,
                     latency_ms=250.0 + i * 50,
                     success=True,
-                    structured_data=json.dumps({
-                        "response": f"{agent_name} output for feature {i}",
-                    }),
+                    structured_data=json.dumps(
+                        {
+                            "response": f"{agent_name} output for feature {i}",
+                        }
+                    ),
                 )
                 session.add(log)
 

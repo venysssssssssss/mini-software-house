@@ -60,11 +60,16 @@ class TestValidateData:
     def test_valid_data(self, tmp_path):
         data_file = tmp_path / "train.jsonl"
         data_file.write_text(
-            json.dumps({"conversations": [
-                {"from": "system", "value": "sys"},
-                {"from": "human", "value": "hello"},
-                {"from": "gpt", "value": "hi"},
-            ]}) + "\n"
+            json.dumps(
+                {
+                    "conversations": [
+                        {"from": "system", "value": "sys"},
+                        {"from": "human", "value": "hello"},
+                        {"from": "gpt", "value": "hi"},
+                    ]
+                }
+            )
+            + "\n"
         )
         count = validate_data(str(data_file))
         assert count == 1
@@ -73,11 +78,17 @@ class TestValidateData:
         data_file = tmp_path / "train.jsonl"
         lines = []
         for i in range(5):
-            lines.append(json.dumps({"conversations": [
-                {"from": "system", "value": "sys"},
-                {"from": "human", "value": f"q{i}"},
-                {"from": "gpt", "value": f"a{i}"},
-            ]}))
+            lines.append(
+                json.dumps(
+                    {
+                        "conversations": [
+                            {"from": "system", "value": "sys"},
+                            {"from": "human", "value": f"q{i}"},
+                            {"from": "gpt", "value": f"a{i}"},
+                        ]
+                    }
+                )
+            )
         data_file.write_text("\n".join(lines) + "\n")
         count = validate_data(str(data_file))
         assert count == 5
@@ -113,10 +124,14 @@ class TestValidateData:
 
     def test_skips_blank_lines(self, tmp_path):
         data_file = tmp_path / "blanks.jsonl"
-        entry = json.dumps({"conversations": [
-            {"from": "system", "value": "s"},
-            {"from": "human", "value": "h"},
-        ]})
+        entry = json.dumps(
+            {
+                "conversations": [
+                    {"from": "system", "value": "s"},
+                    {"from": "human", "value": "h"},
+                ]
+            }
+        )
         data_file.write_text(f"\n{entry}\n\n{entry}\n")
         count = validate_data(str(data_file))
         assert count == 2
@@ -168,13 +183,21 @@ class TestMainCLI:
     def test_valid_args_but_no_unsloth(self, tmp_path, monkeypatch):
         """When unsloth is not installed, train() should sys.exit(1)."""
         data_file = tmp_path / "train.jsonl"
-        data_file.write_text(json.dumps({"conversations": [
-            {"from": "system", "value": "s"},
-            {"from": "human", "value": "h"},
-            {"from": "gpt", "value": "g"},
-        ]}) + "\n")
+        data_file.write_text(
+            json.dumps(
+                {
+                    "conversations": [
+                        {"from": "system", "value": "s"},
+                        {"from": "human", "value": "h"},
+                        {"from": "gpt", "value": "g"},
+                    ]
+                }
+            )
+            + "\n"
+        )
 
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -200,11 +223,18 @@ class TestTrainWithMockedML:
 
     def _make_training_data(self, tmp_path):
         data_file = tmp_path / "train.jsonl"
-        data_file.write_text(json.dumps({"conversations": [
-            {"from": "system", "value": "s"},
-            {"from": "human", "value": "h"},
-            {"from": "gpt", "value": "g"},
-        ]}) + "\n")
+        data_file.write_text(
+            json.dumps(
+                {
+                    "conversations": [
+                        {"from": "system", "value": "s"},
+                        {"from": "human", "value": "h"},
+                        {"from": "gpt", "value": "g"},
+                    ]
+                }
+            )
+            + "\n"
+        )
         return str(data_file)
 
     def test_train_full_flow_mocked(self, tmp_path, monkeypatch):
@@ -232,6 +262,7 @@ class TestTrainWithMockedML:
         mock_trainer_cls.return_value = mock_trainer
 
         import builtins
+
         real_import = builtins.__import__
         mock_modules = {
             "unsloth": MagicMock(FastLanguageModel=mock_flm),
@@ -268,6 +299,7 @@ class TestTrainWithMockedML:
         data_path = self._make_training_data(tmp_path)
 
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):

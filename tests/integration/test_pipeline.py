@@ -151,8 +151,12 @@ class TestFullPipeline:
     def test_pipeline_writes_files(self, orchestrator, tmp_path):
         orchestrator.execute_pipeline("Build a todo API")
 
-        # Files are now in a project subdirectory (plan's project_name)
-        project_dir = tmp_path / "build-todo-api"
+        # Files are in a timestamped project subdirectory (e.g., build-todo-api_20260329_010000/)
+        project_dirs = [
+            d for d in tmp_path.iterdir() if d.is_dir() and d.name.startswith("build-todo-api")
+        ]
+        assert len(project_dirs) == 1
+        project_dir = project_dirs[0]
         assert (project_dir / "app.py").exists()
         content = (project_dir / "app.py").read_text()
         assert "Flask" in content
@@ -165,7 +169,6 @@ class TestFullPipeline:
 
         assert len(events_received) == 1
         assert events_received[0].payload["status"] == "success"
-
 
     def test_pipeline_creates_pipeline_run(self, orchestrator, in_memory_db):
         orchestrator.execute_pipeline("Build a todo API")
@@ -185,9 +188,7 @@ class TestFullPipeline:
         orchestrator.execute_pipeline("Build a todo API")
 
         with Session(in_memory_db) as session:
-            llm_logs = session.exec(
-                select(AgentLog).where(AgentLog.message == "llm_call")
-            ).all()
+            llm_logs = session.exec(select(AgentLog).where(AgentLog.message == "llm_call")).all()
             assert len(llm_logs) >= 1
             for log in llm_logs:
                 assert log.prompt_tokens >= 0

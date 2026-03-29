@@ -53,6 +53,9 @@ class PipelineRun(SQLModel, table=True):
     total_latency_ms: float = Field(default=0.0)
     total_agent_calls: int = Field(default=0)
     execution_time_s: Optional[float] = None
+    workspace_path: Optional[str] = None
+    git_commit_hash: Optional[str] = None
+    git_remote_url: Optional[str] = None
     started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     finished_at: Optional[datetime] = None
 

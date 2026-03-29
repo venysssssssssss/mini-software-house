@@ -25,7 +25,7 @@ logger = get_logger("orchestrator")
 class OrchestratorAgent:
     """Main orchestrator that manages the sequential agent pipeline."""
 
-    def __init__(self):
+    def __init__(self, git_enabled: bool = False):
         self.planner = PlannerAgent()
         self.executor = ExecutorAgent()
         self.tester = TesterAgent()
@@ -37,6 +37,8 @@ class OrchestratorAgent:
         self.plan = {}
         self.execution_results = []
         self.test_results = {}
+        self._git_enabled = git_enabled
+        self._workspace_path = None
 
         # DB IDs for the current run
         self._project_id = None
@@ -237,6 +239,26 @@ class OrchestratorAgent:
             self._update_run_phase(3)
             EventBus.publish("phase.completed", {"phase": "testing"})
 
+            # Run plugins (between testing and documentation)
+            from .plugin_loader import discover_plugins
+
+            plugins = discover_plugins()
+            for plugin in plugins:
+                try:
+                    plugin_result = plugin.execute(
+                        {
+                            "plan": self.plan,
+                            "execution_results": self.execution_results,
+                            "test_results": self.test_results,
+                            "workspace_path": self._workspace_path,
+                        }
+                    )
+                    status = plugin_result.get("status", "unknown")
+                    self._log_to_db(plugin.name, "INFO", f"Plugin result: {status}")
+                    logger.info("plugin.executed", name=plugin.name, status=status)
+                except Exception as e:
+                    logger.warning("plugin.failed", name=plugin.name, error=str(e))
+
             # Phase 4: Documentation
             logger.info("phase.starting", phase="documentation")
             EventBus.publish("phase.started", {"phase": "documentation"})
@@ -244,6 +266,27 @@ class OrchestratorAgent:
             self._flush_agent_metrics()
             self._update_run_phase(4)
             EventBus.publish("phase.completed", {"phase": "documentation"})
+
+            # Git integration (optional)
+            if self._git_enabled and self._workspace_path:
+                from ..utils.git_integration import init_and_commit
+
+                git_result = init_and_commit(
+                    self._workspace_path, plan.get("project_name", "project")
+                )
+                if git_result["success"]:
+                    session = get_session_direct()
+                    try:
+                        run = session.get(PipelineRun, self._pipeline_run_id)
+                        if run:
+                            run.git_commit_hash = git_result["commit_hash"]
+                            session.add(run)
+                            session.commit()
+                    finally:
+                        session.close()
+                    logger.info("git.committed", hash=git_result["commit_hash"])
+                else:
+                    logger.warning("git.failed", error=git_result["error"])
 
             # Mark success
             self._mark_task_completed()
@@ -309,14 +352,30 @@ class OrchestratorAgent:
             logger.warning("development.no_files", plan=plan)
             return True
 
-        # Use plan's project_name for workspace subdirectory
+        # Use plan's project_name with timestamp for isolated workspace
         project_name = plan.get("project_name", "")
         if project_name:
             import os
 
-            project_dir = os.path.join(self.executor.file_manager.workspace_dir, project_name)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            project_dir_name = f"{project_name}_{timestamp}"
+            project_dir = os.path.join(self.executor.file_manager.workspace_dir, project_dir_name)
             os.makedirs(project_dir, exist_ok=True)
             self.executor.file_manager.workspace_dir = os.path.abspath(project_dir)
+
+            self._workspace_path = os.path.abspath(project_dir)
+
+            # Store workspace_path in the PipelineRun record
+            if self._pipeline_run_id:
+                session = get_session_direct()
+                try:
+                    run = session.get(PipelineRun, self._pipeline_run_id)
+                    if run:
+                        run.workspace_path = self._workspace_path
+                        session.add(run)
+                        session.commit()
+                finally:
+                    session.close()
 
         for i, file_task in enumerate(files_to_create):
             logger.info(
@@ -332,9 +391,7 @@ class OrchestratorAgent:
 
             try:
                 # Pass plan context so executor has full project awareness
-                response, saved_files = self.executor.execute_task(
-                    file_task_description, plan=plan
-                )
+                response, saved_files = self.executor.execute_task(file_task_description, plan=plan)
                 self.execution_results.append(
                     {
                         "file": file_task,
@@ -434,9 +491,7 @@ class OrchestratorAgent:
                     )
 
                     # Build targeted correction prompt
-                    correction_task = self.tester.build_correction_prompt(
-                        error_details, error_type
-                    )
+                    correction_task = self.tester.build_correction_prompt(error_details, error_type)
 
                     logger.info(
                         "testing.correction_started",
