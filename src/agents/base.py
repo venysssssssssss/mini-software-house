@@ -5,6 +5,10 @@ from dataclasses import dataclass
 import ollama
 from colorama import Fore, init
 
+# Default timeout for Ollama LLM calls (seconds).
+# Prevents the pipeline from hanging indefinitely if a model stalls.
+OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))
+
 from ..core.logger import get_logger
 
 init(autoreset=True)
@@ -14,7 +18,7 @@ BASE_MODELS = {
     "planner": "qwen2.5:3b",
     "backend": "qwen2.5-coder:3b",
     "frontend": "qwen2.5-coder:1.5b",
-    "tester": "deepseek-coder:1.3b",
+    "tester": "qwen2.5-coder:3b",
     "documenter": "gemma2:2b",
     "rag": "phi3:mini",
 }
@@ -98,7 +102,9 @@ class Agent:
             self.log_action(f"Generating response using model {self.model}...")
             # Enforce keep_alive=0 to unload model immediately and save VRAM
             kwargs.setdefault("keep_alive", 0)
-            response = ollama.chat(model=self.model, messages=messages, **kwargs)
+            # Use a client with timeout to prevent hanging if a model stalls
+            client = ollama.Client(timeout=OLLAMA_TIMEOUT)
+            response = client.chat(model=self.model, messages=messages, **kwargs)
 
             elapsed_ms = (time.perf_counter() - start_time) * 1000
             reply = response["message"]["content"]

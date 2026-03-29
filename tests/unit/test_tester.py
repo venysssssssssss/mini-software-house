@@ -161,10 +161,12 @@ class TestReadWorkspace:
         content = tester.read_workspace_files(str(tmp_path))
         assert content == ""
 
-    def test_summarizes_code(self, tester, tmp_path):
+    def test_includes_full_source_code(self, tester, tmp_path):
         code = "class MyClass:\n    def method(self):\n        pass\n"
         (tmp_path / "module.py").write_text(code)
 
         content = tester.read_workspace_files(str(tmp_path))
-        assert "Summary" in content
+        assert "module.py" in content
         assert "class MyClass" in content
+        assert "def method(self)" in content
+        assert "pass" in content

@@ -50,11 +50,13 @@ class TesterAgent(Agent):
     def __init__(self):
         system_prompt = (
             "You are a Software QA and Test Engineer. "
-            "Write pytest tests for the provided Python code. "
-            "Focus on testing the core logic. "
-            "Always wrap the test code in a markdown block starting with ```python\n"
-            "and ALWAYS put a comment on the VERY FIRST LINE specifying "
-            "the relative filepath as '# filepath: test_<filename>.py'."
+            "Write simple, focused pytest tests for the provided Python code. "
+            "Only test the public API — do not test internal helpers. "
+            "Each test function should test ONE behavior. "
+            "Do NOT import external packages that are not in the source code. "
+            "Always wrap the test code in a single markdown block starting with ```python\n"
+            "and put a comment on the VERY FIRST LINE: '# filepath: tests/test_<name>.py'.\n"
+            "Output ONLY the code block — no explanations before or after."
         )
         super().__init__(
             name="Tester",
@@ -62,25 +64,38 @@ class TesterAgent(Agent):
             system_prompt=system_prompt,
             color=Fore.YELLOW,
         )
+        self._workspace_dir = None
         try:
             self.docker_runner = DockerRunner()
         except Exception as e:
             self.log_action(f"Warning: Docker runner could not be initialized: {e}")
             self.docker_runner = None
 
-    def read_workspace_files(self, workspace_dir="workspace"):
+    def set_workspace(self, workspace_dir: str):
+        """Set the workspace directory to read code from and run tests in."""
+        self._workspace_dir = os.path.abspath(workspace_dir)
+        if self.docker_runner:
+            self.docker_runner.workspace_dir = self._workspace_dir
+
+    def _get_workspace_dir(self) -> str:
+        """Return the active workspace directory."""
+        if self._workspace_dir:
+            return self._workspace_dir
+        return os.path.abspath("workspace")
+
+    def read_workspace_files(self, workspace_dir: str | None = None) -> str:
+        ws = workspace_dir or self._get_workspace_dir()
         content = ""
-        for root, _, files in os.walk(workspace_dir):
+        for root, _, files in os.walk(ws):
             for file in files:
                 if file.endswith(".py") and not file.startswith("test_"):
                     filepath = os.path.join(root, file)
                     try:
                         with open(filepath, "r", encoding="utf-8") as f:
                             raw_code = f.read()
-                            # AST: send structure, not full code
-                            # LLM infers logic from signatures
-                            summary = get_code_summary(raw_code)
-                            content += f"--- {file} (Summary) ---\n{summary}\n\n"
+                            # Send full source code so the tester can write meaningful tests.
+                            # AST summaries lose implementation details needed for assertions.
+                            content += f"--- {file} ---\n{raw_code}\n\n"
                     except Exception:
                         pass
         return content
@@ -92,7 +107,12 @@ class TesterAgent(Agent):
         if not code_context:
             return "No Python code found to test."
 
-        prompt = f"Write pytest tests for the following code:\n\n{code_context}"
+        prompt = (
+            "Write pytest tests for the following code. "
+            "Import modules using their filename (e.g., 'import csv2json'). "
+            "Keep tests simple — test that functions exist and return expected types.\n\n"
+            f"{code_context}"
+        )
         self.log_action("Generating tests...")
         response = self.generate_response(prompt)
         return response

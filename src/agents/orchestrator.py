@@ -230,6 +230,9 @@ class OrchestratorAgent:
             # Phase 3: Testing & Auto-Correction
             logger.info("phase.starting", phase="testing")
             EventBus.publish("phase.started", {"phase": "testing"})
+            # Point tester at the actual project workspace
+            if self._workspace_path:
+                self.tester.set_workspace(self._workspace_path)
             test_success = self._execute_testing_with_correction()
             if not test_success:
                 EventBus.publish("test.failed", {"results": self.test_results})

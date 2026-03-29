@@ -16,7 +16,7 @@ class TestGetModelForRole:
         assert get_model_for_role("planner") == "qwen2.5:3b"
         assert get_model_for_role("backend") == "qwen2.5-coder:3b"
         assert get_model_for_role("frontend") == "qwen2.5-coder:1.5b"
-        assert get_model_for_role("tester") == "deepseek-coder:1.3b"
+        assert get_model_for_role("tester") == "qwen2.5-coder:3b"
         assert get_model_for_role("documenter") == "gemma2:2b"
         assert get_model_for_role("rag") == "phi3:mini"
 
@@ -88,23 +88,25 @@ class TestAgentChatHistory:
 class TestAgentGenerateResponse:
     @patch("src.agents.base.ollama")
     def test_generate_response_success(self, mock_ollama):
-        mock_ollama.chat.return_value = {"message": {"content": "Hello back!"}}
+        mock_client = mock_ollama.Client.return_value
+        mock_client.chat.return_value = {"message": {"content": "Hello back!"}}
 
         agent = Agent(name="test", model="test-model", system_prompt="You are helpful.")
         result = agent.generate_response("Hi")
 
         assert result == "Hello back!"
-        mock_ollama.chat.assert_called_once()
+        mock_client.chat.assert_called_once()
 
         # Verify system prompt is first message
-        call_args = mock_ollama.chat.call_args
+        call_args = mock_client.chat.call_args
         messages = call_args[1]["messages"] if "messages" in call_args[1] else call_args[0][1]
         assert messages[0]["role"] == "system"
         assert messages[0]["content"] == "You are helpful."
 
     @patch("src.agents.base.ollama")
     def test_generate_response_adds_to_history(self, mock_ollama):
-        mock_ollama.chat.return_value = {"message": {"content": "response"}}
+        mock_client = mock_ollama.Client.return_value
+        mock_client.chat.return_value = {"message": {"content": "response"}}
 
         agent = Agent(name="test", model="m", system_prompt="sp")
         agent.generate_response("question")
@@ -115,17 +117,19 @@ class TestAgentGenerateResponse:
 
     @patch("src.agents.base.ollama")
     def test_generate_response_sends_keep_alive_zero(self, mock_ollama):
-        mock_ollama.chat.return_value = {"message": {"content": "ok"}}
+        mock_client = mock_ollama.Client.return_value
+        mock_client.chat.return_value = {"message": {"content": "ok"}}
 
         agent = Agent(name="test", model="m", system_prompt="sp")
         agent.generate_response("test")
 
-        call_kwargs = mock_ollama.chat.call_args[1]
+        call_kwargs = mock_client.chat.call_args[1]
         assert call_kwargs["keep_alive"] == 0
 
     @patch("src.agents.base.ollama")
     def test_generate_response_ollama_error(self, mock_ollama):
-        mock_ollama.chat.side_effect = ConnectionError("Ollama is down")
+        mock_client = mock_ollama.Client.return_value
+        mock_client.chat.side_effect = ConnectionError("Ollama is down")
 
         agent = Agent(name="test", model="m", system_prompt="sp")
         result = agent.generate_response("test")
@@ -143,7 +147,8 @@ class TestAgentMetrics:
 
     @patch("src.agents.base.ollama")
     def test_metrics_collected_on_success(self, mock_ollama):
-        mock_ollama.chat.return_value = {
+        mock_client = mock_ollama.Client.return_value
+        mock_client.chat.return_value = {
             "message": {"content": "response"},
             "prompt_eval_count": 42,
             "eval_count": 15,
@@ -165,7 +170,8 @@ class TestAgentMetrics:
 
     @patch("src.agents.base.ollama")
     def test_metrics_collected_on_failure(self, mock_ollama):
-        mock_ollama.chat.side_effect = ConnectionError("down")
+        mock_client = mock_ollama.Client.return_value
+        mock_client.chat.side_effect = ConnectionError("down")
 
         agent = Agent(name="FailAgent", model="m", system_prompt="sp")
         agent.generate_response("test")
@@ -179,7 +185,8 @@ class TestAgentMetrics:
 
     @patch("src.agents.base.ollama")
     def test_reset_clears_metrics(self, mock_ollama):
-        mock_ollama.chat.return_value = {"message": {"content": "ok"}}
+        mock_client = mock_ollama.Client.return_value
+        mock_client.chat.return_value = {"message": {"content": "ok"}}
 
         agent = Agent(name="t", model="m", system_prompt="sp")
         agent.generate_response("test")
@@ -190,7 +197,8 @@ class TestAgentMetrics:
 
     @patch("src.agents.base.ollama")
     def test_metrics_shared_across_agents(self, mock_ollama):
-        mock_ollama.chat.return_value = {
+        mock_client = mock_ollama.Client.return_value
+        mock_client.chat.return_value = {
             "message": {"content": "ok"},
             "prompt_eval_count": 10,
             "eval_count": 5,
@@ -209,8 +217,9 @@ class TestAgentMetrics:
 
     @patch("src.agents.base.ollama")
     def test_metrics_default_zero_when_missing(self, mock_ollama):
+        mock_client = mock_ollama.Client.return_value
         # Ollama response without token counts
-        mock_ollama.chat.return_value = {"message": {"content": "ok"}}
+        mock_client.chat.return_value = {"message": {"content": "ok"}}
 
         agent = Agent(name="t", model="m", system_prompt="sp")
         agent.generate_response("test")
